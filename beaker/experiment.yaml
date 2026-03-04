@@ -1,0 +1,28 @@
+# DreamZero Wan2.2 smoke test on Beaker (2 steps, 4 GPUs)
+# Submit with workspace: beaker experiment create beaker/experiment.yaml --workspace ai2/mujoco-thor-objaverse
+version: v2
+description: DreamZero Wan2.2 smoke test (2 steps)
+budget: ai2/oe-mm
+tasks:
+  - name: smoke-test-dreamzero-wan22
+    image:
+      beaker: yejink/dreamzero-wan22
+    command:
+      - /bin/bash
+      - -c
+      - |
+        cd /root/yejink/dreamzero && export NUM_GPUS=4 && bash scripts/train/droid_training_wan22_smoke_test.sh
+    resources:
+      gpuCount: 4
+      memory: 1B # request minimal to get whatever is available
+    envVars:
+      - name: WANDB_API_KEY
+        secret: wandb-api-key
+    datasets:
+      - mountPath: /root
+        source:
+          weka: prior-default
+    constraints:
+      cluster: [ ai2/neptune ]
+    context:
+      priority: normal
