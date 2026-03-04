@@ -2,10 +2,17 @@
 
 ## Build the image
 
-From the **repo root** (parent of `beaker/`):
+From the **repo root** (parent of `beaker/`). The `-t` flag tags the image; without it the image will show as `<none>`.
 
 ```bash
+cd /path/to/dreamzero
 docker build -f beaker/Dockerfile -t dreamzero-wan22:latest .
+```
+
+You should see `Successfully tagged dreamzero-wan22:latest` at the end. Then push to Beaker:
+
+```bash
+beaker image create --name yejink/dreamzero-wan22 dreamzero-wan22:latest
 ```
 
 ## Test the image locally
