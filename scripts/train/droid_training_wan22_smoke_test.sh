@@ -32,6 +32,9 @@ if [ ! -d "$DROID_DATA_ROOT" ]; then
     exit 1
 fi
 
+# Ensure hydra is available (e.g. when container uses a different Python than the one used at build)
+pip install hydra-core --quiet
+
 echo "Smoke test: max_steps=2, NUM_GPUS=$NUM_GPUS, output=$OUTPUT_DIR"
 
 torchrun --nproc_per_node $NUM_GPUS --standalone groot/vla/experiment/experiment.py \
