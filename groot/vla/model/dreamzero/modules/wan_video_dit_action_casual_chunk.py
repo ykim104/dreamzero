@@ -1381,7 +1381,7 @@ class CausalWanModel(ModelMixin, ConfigMixin):
             rope_params(1024, 2 * (d // 6)),
             rope_params(1024, 2 * (d // 6)),
         ]
-        if model_type == 'i2v':
+        if model_type in ('i2v', 'ti2v'):
             self.img_emb = MLPProj(1280, dim)
 
         # initialize weights
