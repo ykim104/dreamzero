@@ -11,7 +11,10 @@ tasks:
       - /bin/bash
       - -c
       - |
-        cd /root/yejink/dreamzero && export NUM_GPUS=4 && bash scripts/train/droid_training_wan22_smoke_test.sh
+        export NUM_GPUS=4
+        export DREAMZERO_ROOT=/root/yejink/dreamzero
+        export DROID_DATA_ROOT=/root/yejink/dreamzero/data/droid_lerobot
+        bash /root/yejink/dreamzero/scripts/train/droid_training_wan22_smoke_test.sh
     resources:
       gpuCount: 4
       memory: 1B # request minimal to get whatever is available

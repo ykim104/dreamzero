@@ -5,13 +5,37 @@
 
 export HYDRA_FULL_ERROR=1
 
-# Smoke-test settings
+# Repo root: must be a directory that contains groot/ (so experiment.py can be found).
+# Beaker/weka uses /root/yejink/dreamzero; image has /root/dreamzero; else script location.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+if [ -n "$DREAMZERO_ROOT" ] && [ -d "$DREAMZERO_ROOT/groot" ]; then
+    : # keep existing and valid
+elif [ -d "/root/yejink/dreamzero/groot" ]; then
+    DREAMZERO_ROOT=/root/yejink/dreamzero
+elif [ -d "/root/dreamzero/groot" ]; then
+    DREAMZERO_ROOT=/root/dreamzero
+elif [ -d "$SCRIPT_REPO_ROOT/groot" ]; then
+    DREAMZERO_ROOT="$SCRIPT_REPO_ROOT"
+else
+    DREAMZERO_ROOT="${DREAMZERO_ROOT:-/root/yejink/dreamzero}"
+fi
+if [ ! -d "$DREAMZERO_ROOT/groot" ]; then
+    echo "ERROR: No groot/ under $DREAMZERO_ROOT. Set DREAMZERO_ROOT to the dreamzero repo root that contains groot/."
+    exit 1
+fi
+
+# Smoke-test settings (defaults relative to repo root)
 NUM_GPUS=${NUM_GPUS:-1}
-DROID_DATA_ROOT=${DROID_DATA_ROOT:-"./data/droid_lerobot"}
-OUTPUT_DIR=${OUTPUT_DIR:-"./checkpoints/dreamzero_droid_wan22_smoke"}
-WAN22_CKPT_DIR=${WAN22_CKPT_DIR:-"./checkpoints/Wan2.2-TI2V-5B"}
-IMAGE_ENCODER_DIR=${IMAGE_ENCODER_DIR:-"./checkpoints/Wan2.1-I2V-14B-480P"}
-TOKENIZER_DIR=${TOKENIZER_DIR:-"./checkpoints/umt5-xxl"}
+DROID_DATA_ROOT=${DROID_DATA_ROOT:-"$DREAMZERO_ROOT/data/droid_lerobot"}
+# If env set the old relative default, resolve to repo root (e.g. Beaker image env)
+if [ "$DROID_DATA_ROOT" = "./data/droid_lerobot" ]; then
+    DROID_DATA_ROOT="$DREAMZERO_ROOT/data/droid_lerobot"
+fi
+OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_droid_wan22_smoke"}
+WAN22_CKPT_DIR=${WAN22_CKPT_DIR:-"$DREAMZERO_ROOT/checkpoints/Wan2.2-TI2V-5B"}
+IMAGE_ENCODER_DIR=${IMAGE_ENCODER_DIR:-"$DREAMZERO_ROOT/checkpoints/Wan2.1-I2V-14B-480P"}
+TOKENIZER_DIR=${TOKENIZER_DIR:-"$DREAMZERO_ROOT/checkpoints/umt5-xxl"}
 
 # Same auto-download as main script
 if [ ! -d "$WAN22_CKPT_DIR" ] || [ -z "$(ls -A "$WAN22_CKPT_DIR" 2>/dev/null)" ]; then
@@ -32,12 +56,26 @@ if [ ! -d "$DROID_DATA_ROOT" ]; then
     exit 1
 fi
 
-# Ensure hydra is available (e.g. when container uses a different Python than the one used at build)
-pip install hydra-core --quiet
+# Use image Python 3.11 (Dockerfile installs dreamzero with python3.11 -m pip). No conda wan22.
+# Absolute path so worker processes open the correct file even if their cwd differs.
+EXPERIMENT_PY="$DREAMZERO_ROOT/groot/vla/experiment/experiment.py"
+if [ ! -f "$EXPERIMENT_PY" ]; then
+    echo "ERROR: Not found: $EXPERIMENT_PY"
+    exit 1
+fi
+PYTHON_311="/usr/bin/python3.11"
+if [ -x "$PYTHON_311" ]; then
+    RUN_CMD=( "$PYTHON_311" -m torch.distributed.run --nproc_per_node "$NUM_GPUS" --standalone "$EXPERIMENT_PY" )
+    echo "Using image Python 3.11: $PYTHON_311"
+else
+    RUN_CMD=( python3 -m torch.distributed.run --nproc_per_node "$NUM_GPUS" --standalone "$EXPERIMENT_PY" )
+    echo "Using: $(command -v python3)"
+fi
+cd "$DREAMZERO_ROOT"
 
-echo "Smoke test: max_steps=2, NUM_GPUS=$NUM_GPUS, output=$OUTPUT_DIR"
+echo "Smoke test: max_steps=2, NUM_GPUS=$NUM_GPUS, output=$OUTPUT_DIR (cwd=$DREAMZERO_ROOT)"
 
-torchrun --nproc_per_node $NUM_GPUS --standalone groot/vla/experiment/experiment.py \
+"${RUN_CMD[@]}" \
     report_to=none \
     data=dreamzero/droid_relative \
     wandb_project=dreamzero \
