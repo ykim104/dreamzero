@@ -1219,8 +1219,11 @@ class ShardedLeRobotSubLangSingleActionChunkDatasetDROID(LeRobotSingleDataset):
             # Only add if it doesn't exceed trajectory bounds and max_frames
             if additional_idx < trajectory_length and unique_sorted.size < max_frames:
                 unique_sorted = np.append(unique_sorted, additional_idx)
-            else: 
-                # print("additional_idx", additional_idx, trajectory_length, unique_sorted.size, max_frames)
+            else:
+                # Trim to 8n+1 format. Require at least 9 frames so (noisy_frames-1)//num_frame_per_block >= 1
+                # for action/state model invariant (CausalWanModel); otherwise return empty so sample is skipped.
+                if unique_sorted.size <= 8:
+                    return np.array([])
                 unique_sorted = unique_sorted[:-7]
         
         # ensure that unique_sorted has 4n+1 frames

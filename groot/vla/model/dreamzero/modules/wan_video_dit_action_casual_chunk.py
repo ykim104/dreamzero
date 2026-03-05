@@ -887,12 +887,22 @@ class CausalWanSelfAttention(nn.Module):
                     # Noisy half contains image + action + state tokens
                     noisy_image_seq_len = half_seq_len
                     noisy_frames = noisy_image_seq_len // self.frame_seqlen
-                    # Derive action/state horizon from actual register length so assertion and splits match
-                    # (num_image_blocks can be 0 for 5B when seq_len=frame_seqlen, but register has tokens)
-                    chunk_size = action_register_length // (self.num_action_per_block + self.num_state_per_block)
-                    action_horizon = chunk_size * self.num_action_per_block
-                    state_horizon = action_register_length - action_horizon  # so action_horizon + state_horizon == action_register_length
-                    num_image_blocks = chunk_size  # for downstream use
+                    num_image_blocks = (noisy_frames - 1) // self.num_frame_per_block
+                    action_horizon = num_image_blocks * self.num_action_per_block
+                    state_horizon = num_image_blocks * self.num_state_per_block
+                    
+                    # Assertion enforces config invariant: block layout must match actual register length.
+                    # If this fails, we have too few frames for the action/state tokens (e.g. 5B with 1 frame).
+                    # Fix: ensure min frames per batch so num_image_blocks >= 1 (e.g. max_chunk_size or num_frames).
+                    if roped_query.shape[1] != half_seq_len + noisy_image_seq_len + action_horizon + state_horizon:
+                        raise ValueError(
+                            "Sequence length does not match block layout. "
+                            "When using action/state tokens, you need enough frames so that "
+                            "(noisy_frames - 1) // num_frame_per_block >= 1. "
+                            f"Got noisy_frames={noisy_frames}, num_image_blocks={num_image_blocks}, "
+                            f"action_register_length={action_register_length}. "
+                            "For 5B (frame_seqlen=55), use at least 3 frames per chunk so num_image_blocks >= 1."
+                        )
                     
                     # Split clean and noisy parts
                     # Clean: [image tokens only]
@@ -900,8 +910,6 @@ class CausalWanSelfAttention(nn.Module):
                     clean_image_k = roped_key[:, :clean_image_seq_len]
                     clean_image_v = v[:, :clean_image_seq_len]
 
-                    assert roped_query.shape[1] == half_seq_len + noisy_image_seq_len + action_horizon + state_horizon
-                    
                     # Noisy: [image tokens][action tokens][state tokens]
                     noisy_image_q = roped_query[:, half_seq_len:half_seq_len + noisy_image_seq_len]
                     noisy_action_q = roped_query[:, half_seq_len + noisy_image_seq_len:half_seq_len + noisy_image_seq_len + action_horizon]

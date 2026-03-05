@@ -10,6 +10,8 @@ relative_action: true
 relative_action_per_horizon: false
 relative_action_keys:
   - joint_position
+# For action/state model (e.g. Wan 5B): (noisy_frames-1)//num_frame_per_block >= 1 => min 3 frames.
+# DROID video sampling uses 8n+1; samples that would yield 1 frame are skipped (empty → get_step_data returns None).
 max_chunk_size: 5
 # Use 10% of data in shards before moving to next shard
 dataset_shard_sampling_rate: 0.1
