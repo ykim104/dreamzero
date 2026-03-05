@@ -887,9 +887,12 @@ class CausalWanSelfAttention(nn.Module):
                     # Noisy half contains image + action + state tokens
                     noisy_image_seq_len = half_seq_len
                     noisy_frames = noisy_image_seq_len // self.frame_seqlen
-                    num_image_blocks = (noisy_frames - 1) // self.num_frame_per_block
-                    action_horizon = num_image_blocks * self.num_action_per_block
-                    state_horizon = num_image_blocks * self.num_state_per_block
+                    # Derive action/state horizon from actual register length so assertion and splits match
+                    # (num_image_blocks can be 0 for 5B when seq_len=frame_seqlen, but register has tokens)
+                    chunk_size = action_register_length // (self.num_action_per_block + self.num_state_per_block)
+                    action_horizon = chunk_size * self.num_action_per_block
+                    state_horizon = action_register_length - action_horizon  # so action_horizon + state_horizon == action_register_length
+                    num_image_blocks = chunk_size  # for downstream use
                     
                     # Split clean and noisy parts
                     # Clean: [image tokens only]
