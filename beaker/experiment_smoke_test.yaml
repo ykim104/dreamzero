@@ -1,10 +1,10 @@
 # DreamZero Wan2.2 smoke test on Beaker (2 steps, 4 GPUs)
 # Submit with workspace: beaker experiment create beaker/experiment.yaml --workspace ai2/mujoco-thor-objaverse
 version: v2
-description: DreamZero Wan2.2 5B
+description: DreamZero Wan2.2 5B smoke test
 budget: ai2/oe-mm
 tasks:
-  - name: droid-training-wan22-5b
+  - name: smoke-test-dreamzero-wan22
     image:
       beaker: yejink/dreamzero-wan22
     command:
@@ -14,7 +14,7 @@ tasks:
         export NUM_GPUS=4
         export DREAMZERO_ROOT=/root/yejink/dreamzero
         export DROID_DATA_ROOT=/root/yejink/dreamzero/data/droid_lerobot
-        bash /root/yejink/dreamzero/scripts/train/droid_training_wan22.sh
+        bash /root/yejink/dreamzero/scripts/train/droid_training_wan22_smoke_test.sh
     resources:
       gpuCount: 4
       memory: 1B # request minimal to get whatever is available
