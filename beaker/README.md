@@ -36,7 +36,19 @@ print('flash_attn OK, decord OK, librosa OK')
 EOF"
 ```
 
-If that finishes without errors and reports CUDA available, the image is ready.
+If that finishes without errors and reports CUDA available, the image is ready. If you see `ArgumentError: activate does not accept more than one argument`, the base image has an entrypoint; use `--entrypoint ""`:
+
+```bash
+docker run --rm --entrypoint "" --gpus all \
+  -v $PWD:/workspace/dreamzero \
+  dreamzero-wan22:latest \
+  bash -c "python3.11 -c \"
+import torch
+from flash_attn import flash_attn_interface
+import decord, librosa
+print('Torch:', torch.__version__, 'CUDA:', torch.cuda.is_available(), 'Device count:', torch.cuda.device_count())
+\""
+```
 
 ## Create the Beaker image
 

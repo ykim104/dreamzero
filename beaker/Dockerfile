@@ -28,6 +28,9 @@ RUN python3.11 -m ensurepip --upgrade && python3.11 -m pip install --upgrade pip
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
     && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
+# Pin NumPy 1.26.x first so PyTorch and all deps use it (avoids numpy._core / _signature_descriptor errors in multiprocessing)
+RUN python3.11 -m pip install "numpy==1.26.4"
+
 # Override base torch with 2.8 (Python 3.11, keeps CUDA_HOME for DeepSpeed)
 RUN python3.11 -m pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --extra-index-url "${TORCH_EXTRA_INDEX_URL}"
 
@@ -46,6 +49,10 @@ RUN python3.11 -m pip install librosa decord
 # Install flash_attn last from prebuilt wheel (Python 3.11, CUDA 12, PyTorch 2.8)
 ARG FLASH_ATTN_WHEEL_URL="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp311-cp311-linux_x86_64.whl"
 RUN python3.11 -m pip install "${FLASH_ATTN_WHEEL_URL}"
+
+# Ensure NumPy stays 1.26.4 and reinstall scipy/sklearn so they link to it (avoids numpy._core.multiarray failed to import in workers)
+RUN python3.11 -m pip install "numpy==1.26.4" --force-reinstall \
+    && python3.11 -m pip install --force-reinstall --no-deps scipy scikit-learn
 
 ENV PYTHONPATH=/root/dreamzero:${PYTHONPATH}
 

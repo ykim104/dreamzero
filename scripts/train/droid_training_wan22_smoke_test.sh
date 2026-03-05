@@ -102,7 +102,7 @@ echo "Smoke test: max_steps=2, NUM_GPUS=$NUM_GPUS, output=$OUTPUT_DIR (cwd=$DREA
     per_device_train_batch_size=1 \
     max_steps=2 \
     weight_decay=1e-5 \
-    save_total_limit=1 \
+    save_total_limit=5 \
     upload_checkpoints=false \
     bf16=true \
     tf32=true \
