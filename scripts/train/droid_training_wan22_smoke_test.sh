@@ -65,6 +65,10 @@ if [ ! -f "$EXPERIMENT_PY" ]; then
 fi
 PYTHON_311="/usr/bin/python3.11"
 if [ -x "$PYTHON_311" ]; then
+    # Workaround: ensure NumPy 1.26.4 so PyTorch/transformers don't hit numpy._core errors (if image has wrong numpy)
+    if [ -n "${FIX_NUMPY_IN_SCRIPT:-}" ]; then
+        "$PYTHON_311" -m pip install "numpy==1.26.4" --force-reinstall -q 2>/dev/null || true
+    fi
     RUN_CMD=( "$PYTHON_311" -m torch.distributed.run --nproc_per_node "$NUM_GPUS" --standalone "$EXPERIMENT_PY" )
     echo "Using image Python 3.11: $PYTHON_311"
 else
