@@ -9,6 +9,7 @@ defaults:
 # Wan2.2-TI2V-5B specific overrides
 # frame_seqlen for Wan2.2 VAE (16x spatial): 320x176 -> 20*11/4=55, 640x352 -> 40*22/4=220
 # DROID uses 320x176, so frame_seqlen=55
+# Same as 5B pretrained: latent only (in_dim=48), first-frame via CLIP; no [x;y] concat.
 frame_seqlen: 55
 
 action_head_cfg:
@@ -17,6 +18,7 @@ action_head_cfg:
       model_type: "ti2v"
       dim: 3072
       in_dim: 48
+      concat_first_frame_latent: false
       ffn_dim: 14336
       out_dim: 48
       freq_dim: 256

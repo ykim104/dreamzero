@@ -1253,11 +1253,14 @@ class CausalWanModel(ModelMixin, ConfigMixin):
                  hidden_size=1024,
                  diffusion_model_pretrained_path=None,
                  num_action_per_block=32,
-                 num_state_per_block=1):
+                 num_state_per_block=1,
+                 concat_first_frame_latent=True):
         r"""
         Initialize the diffusion model backbone.
 
         Args:
+            concat_first_frame_latent (`bool`, *optional*, defaults to True):
+                If True, concat [x; y] before patch_embedding (14B I2V style). If False, latent only (5B pretrained style; first-frame via CLIP).
             model_type (`str`, *optional*, defaults to 't2v'):
                 Model variant - 't2v' (text-to-video) or 'i2v' (image-to-video)
             patch_size (`tuple`, *optional*, defaults to (1, 2, 2)):
@@ -1321,6 +1324,7 @@ class CausalWanModel(ModelMixin, ConfigMixin):
         self.hidden_size = hidden_size
         self.num_action_per_block = num_action_per_block
         self.num_state_per_block = num_state_per_block
+        self.concat_first_frame_latent = concat_first_frame_latent
 
         max_num_embodiments = 1
 
@@ -1911,7 +1915,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
             assert clip_feature is not None and y is not None
         assert context.shape[1] == self.text_len
 
-        if y is not None:
+        # Concat [x; y] only when pretrained that way (14B). 5B uses latent only, first-frame via CLIP.
+        if y is not None and self.concat_first_frame_latent:
             x = torch.cat([x, y.to(dtype=x.dtype)], dim=1)
 
         # embeddings
@@ -1988,7 +1993,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
         if self.model_type == 'i2v':
             assert clip_feature is not None and y is not None
 
-        if y is not None:
+        # Concat [x; y] only when pretrained that way (14B). 5B uses latent only, first-frame via CLIP.
+        if y is not None and self.concat_first_frame_latent:
             x = torch.cat([x, y.to(dtype=x.dtype)], dim=1)
 
         # embeddings
@@ -2048,7 +2054,7 @@ class CausalWanModel(ModelMixin, ConfigMixin):
             context = torch.cat([clip_embedding, context], dim=1)
 
         if clean_x is not None:
-            if y is not None:
+            if y is not None and self.concat_first_frame_latent:
                 clean_x = torch.cat([clean_x, y.to(dtype=clean_x.dtype)], dim=1)
             clean_x = self.patch_embedding(clean_x)
             clean_x = clean_x.flatten(start_dim=2).transpose(1, 2)
