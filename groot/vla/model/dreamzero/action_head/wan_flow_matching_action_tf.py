@@ -554,19 +554,19 @@ class WANPolicyHead(ActionHead):
         with torch.amp.autocast(dtype=torch.bfloat16, device_type=torch.device(self._device).type):
             batch_size = image.shape[0]
             clip_context = self.image_encoder.encode_image(image)
-            msk = torch.ones(batch_size, num_frames, height//8, width//8, device=self._device)
-            msk[:, 1:] = 0
-            msk = torch.concat([torch.repeat_interleave(msk[:, 0:1], repeats=4, dim=1), msk[:, 1:]], dim=1)
-            msk = msk.view(batch_size, msk.shape[1] // 4, 4, height//8, width//8)
-            msk = msk.transpose(1, 2)
-            # mask shape is B * 4 * (1+(T-1)/4) * h/8 * w/8
             image_input = image.transpose(1, 2)
             image_zeros = torch.zeros(batch_size, 3, num_frames-1, height, width, dtype=torch.bfloat16, device=self._device)
             self._ensure_vae_on_device(image_input)
             with torch.no_grad():
                 y = self.vae.encode(torch.concat([image_input, image_zeros], dim=2))
+            # Build mask to match VAE output shape (VAE may use different spatial downsampling, e.g. WanVideoVAE38 uses patch_size=2 -> height/16)
+            # y shape is B * 16 * (1+(T-1)/4) * H_latent * W_latent
+            num_t = y.shape[2]
+            h_latent, w_latent = y.shape[3], y.shape[4]
+            msk = torch.zeros(batch_size, 4, num_t, h_latent, w_latent, dtype=y.dtype, device=self._device)
+            msk[:, :, 0:1, :, :] = 1
             new_image = y[:, :, 0:1]
-            # y shape is B * 16 * (1+(T-1)/4) * h/8 * w/8
+            # concat: B * (4+16) * (1+(T-1)/4) * H_latent * W_latent
             y = torch.concat([msk, y], dim=1)
         return clip_context, y, new_image
     
