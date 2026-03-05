@@ -109,6 +109,7 @@ echo "Smoke test: max_steps=2, NUM_GPUS=$NUM_GPUS, output=$OUTPUT_DIR (cwd=$DREA
     eval_bf16=true \
     dataloader_pin_memory=false \
     dataloader_num_workers=0 \
+    dataloader_persistent_workers=false \
     image_resolution_width=320 \
     image_resolution_height=176 \
     save_lora_only=true \
