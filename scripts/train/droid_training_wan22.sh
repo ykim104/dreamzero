@@ -101,7 +101,7 @@ fi
 cd "$DREAMZERO_ROOT"
 
 "${RUN_CMD[@]}" \
-    report_to=none \
+    report_to=wandb \
     data=dreamzero/droid_relative \
     wandb_project=dreamzero \
     train_architecture=lora \
