@@ -625,7 +625,19 @@ class WANPolicyHead(ActionHead):
         
         # shape of B * max_length * dim
         prompt_embs = self.encode_prompt(data["text"], data["text_attention_mask"])
-        
+
+        # Wan 5B (frame_seqlen=55) expects 320x176; resize so latent tokens/frame matches DiT and frames align with action chunks
+        if getattr(self.model, "frame_seqlen", None) == 55:
+            _, _, _, h, w = videos.shape
+            if (h, w) != (176, 320):
+                b, c, t, _, _ = videos.shape
+                videos = torch.nn.functional.interpolate(
+                    videos.reshape(b * t, c, h, w),
+                    size=(176, 320),
+                    mode="bilinear",
+                    align_corners=False,
+                ).reshape(b, c, t, 176, 320)
+
         latents = self.encode_video(videos, self.tiled, (self.tile_size_height, self.tile_size_width), (self.tile_stride_height, self.tile_stride_width))
 
         # print("latents shape", latents.shape, self.dtype)

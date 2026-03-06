@@ -102,7 +102,7 @@ cd "$DREAMZERO_ROOT"
 
 "${RUN_CMD[@]}" \
     report_to=wandb \
-    data=dreamzero/droid_relative \
+    data=dreamzero/droid_relative_wan22 \
     wandb_project=dreamzero \
     train_architecture=lora \
     num_frames=33 \
@@ -130,8 +130,6 @@ cd "$DREAMZERO_ROOT"
     eval_bf16=true \
     dataloader_pin_memory=false \
     dataloader_num_workers=1 \
-    image_resolution_width=320 \
-    image_resolution_height=176 \
     save_lora_only=true \
     max_chunk_size=4 \
     frame_seqlen=55 \

@@ -81,7 +81,7 @@ echo "Smoke test: max_steps=2, NUM_GPUS=$NUM_GPUS, output=$OUTPUT_DIR (cwd=$DREA
 
 "${RUN_CMD[@]}" \
     report_to=none \
-    data=dreamzero/droid_relative \
+    data=dreamzero/droid_relative_wan22 \
     wandb_project=dreamzero \
     train_architecture=lora \
     num_frames=33 \
@@ -110,8 +110,6 @@ echo "Smoke test: max_steps=2, NUM_GPUS=$NUM_GPUS, output=$OUTPUT_DIR (cwd=$DREA
     dataloader_pin_memory=false \
     dataloader_num_workers=0 \
     dataloader_persistent_workers=false \
-    image_resolution_width=320 \
-    image_resolution_height=176 \
     save_lora_only=true \
     max_chunk_size=4 \
     frame_seqlen=55 \

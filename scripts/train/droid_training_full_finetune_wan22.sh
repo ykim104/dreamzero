@@ -94,7 +94,7 @@ cd "$DREAMZERO_ROOT"
 # Full fine-tune: train_architecture=full, save_lora_only=false, ZeRO-2 + CPU offload for 5B
 "${RUN_CMD[@]}" \
     report_to=wandb \
-    data=dreamzero/droid_relative \
+    data=dreamzero/droid_relative_wan22 \
     wandb_project=dreamzero \
     train_architecture=full \
     num_frames=33 \

@@ -891,17 +891,15 @@ class CausalWanSelfAttention(nn.Module):
                     action_horizon = num_image_blocks * self.num_action_per_block
                     state_horizon = num_image_blocks * self.num_state_per_block
                     
-                    # Assertion enforces config invariant: block layout must match actual register length.
-                    # If this fails, we have too few frames for the action/state tokens (e.g. 5B with 1 frame).
-                    # Fix: ensure min frames per batch so num_image_blocks >= 1 (e.g. max_chunk_size or num_frames).
+                    # Block layout must match actual register length. For 5B use 320x176 so latent frame_seqlen=55.
                     if roped_query.shape[1] != half_seq_len + noisy_image_seq_len + action_horizon + state_horizon:
                         raise ValueError(
                             "Sequence length does not match block layout. "
-                            "When using action/state tokens, you need enough frames so that "
-                            "(noisy_frames - 1) // num_frame_per_block >= 1. "
+                            "For 5B use 320x176 (e.g. data=dreamzero/droid_relative_wan22 or image_resolution_width=320, image_resolution_height=176). "
                             f"Got noisy_frames={noisy_frames}, num_image_blocks={num_image_blocks}, "
                             f"action_register_length={action_register_length}. "
-                            "For 5B (frame_seqlen=55), use at least 3 frames per chunk so num_image_blocks >= 1."
+                            "Ensure (noisy_frames - 1) // num_frame_per_block >= 1 and register length equals "
+                            "num_blocks * (num_action_per_block + num_state_per_block)."
                         )
                     
                     # Split clean and noisy parts

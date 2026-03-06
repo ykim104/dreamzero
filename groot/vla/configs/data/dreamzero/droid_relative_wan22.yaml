@@ -1,0 +1,11 @@
+# @package _global_
+# DROID data config for Wan 5B (Wan2.2): 320x176 so latent frame_seqlen=55 matches DiT and frames align with action chunks.
+# Use with: data=dreamzero/droid_relative_wan22 (or override image_resolution in the base script).
+
+defaults:
+  - droid_relative
+  - _self_
+
+# Wan 5B expects 320x176 (frame_seqlen=55). Override base resolution so pipeline always feeds this size.
+image_resolution_width: 320
+image_resolution_height: 176
