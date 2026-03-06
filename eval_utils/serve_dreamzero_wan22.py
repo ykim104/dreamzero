@@ -13,6 +13,9 @@ Usage (single GPU):
   # Option B: single process (initializes dist with world_size=1)
   python eval_utils/serve_dreamzero_wan22.py --model_path ./checkpoints/dreamzero_droid_wan22_smoke --port 8000
 
+  # When loading from a checkpoint trained with a local tokenizer path, either ensure that path
+  # exists, or override it: --tokenizer_path google/umt5-xxl (downloads) or --tokenizer_path /path/to/umt5-xxl
+
 Client should send observations in the format expected by PolicyServerConfig (see policy_server.py).
 The model resizes video to 160×320 internally (Wan22 config target_video_height/width), so the client
 can send other resolutions; using (160, 320) in server_config is recommended to reduce bandwidth.
@@ -185,6 +188,7 @@ class DreamZeroWan225BPolicy(BasePolicy):
 
 def main(
     model_path: str = "./checkpoints/dreamzero_droid_wan22_smoke",
+    tokenizer_path: str | None = None,
     port: int = 8000,
     host: str = "0.0.0.0",
 ) -> None:
@@ -198,6 +202,7 @@ def main(
     policy = GrootSimPolicy(
         embodiment_tag=EmbodimentTag("oxe_droid"),
         model_path=model_path,
+        tokenizer_path_override=tokenizer_path,
         device="cuda" if torch.cuda.is_available() else "cpu",
         device_mesh=device_mesh,
     )

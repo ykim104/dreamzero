@@ -202,6 +202,19 @@ class BaseGrootSimPolicy(BaseTianshouPolicy):
         return {}
 
 
+def _update_tokenizer_path_in_config(cfg, new_path: str) -> None:
+    """Recursively update tokenizer_path in OmegaConf config (e.g. for local checkpoint loading)."""
+    from omegaconf import DictConfig, ListConfig
+    if isinstance(cfg, DictConfig):
+        if "tokenizer_path" in cfg:
+            cfg.tokenizer_path = new_path
+        for v in cfg.values():
+            _update_tokenizer_path_in_config(v, new_path)
+    elif isinstance(cfg, ListConfig):
+        for v in cfg:
+            _update_tokenizer_path_in_config(v, new_path)
+
+
 class GrootSimPolicy(BaseGrootSimPolicy):
     def __init__(
         self,
@@ -209,6 +222,7 @@ class GrootSimPolicy(BaseGrootSimPolicy):
         model_path: str,
         device: int | str,
         model_config_overrides: list[str] | None = [],
+        tokenizer_path_override: str | None = None,
         skip_assert_delta_indices: bool = False,
         skip_img_transform: bool = False,
         lazy_load: bool = False,
@@ -231,6 +245,8 @@ class GrootSimPolicy(BaseGrootSimPolicy):
         exp_cfg_dir = model_dir / "experiment_cfg"
         train_cfg_path = exp_cfg_dir / "conf.yaml"
         train_cfg = OmegaConf.load(train_cfg_path)
+        if tokenizer_path_override is not None:
+            _update_tokenizer_path_in_config(train_cfg, tokenizer_path_override)
         self.train_cfg = train_cfg
         self.lazy_load = lazy_load
 

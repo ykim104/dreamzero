@@ -1,3 +1,4 @@
+import os
 import random
 from typing import Any, Dict, List, Optional
 
@@ -42,8 +43,13 @@ class HuggingfaceTokenizer:
         self.seq_len = seq_len
         self.clean = clean
 
+        # When loading from a local checkpoint path (e.g. from training runs), pass
+        # local_files_only=True to avoid HFValidationError from validate_repo_id.
+        load_kwargs = dict(kwargs)
+        if os.path.isdir(name):
+            load_kwargs.setdefault("local_files_only", True)
         # init tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(name, **kwargs)
+        self.tokenizer = AutoTokenizer.from_pretrained(name, **load_kwargs)
         self.vocab_size = self.tokenizer.vocab_size
 
     def __call__(self, sequence, **kwargs):
