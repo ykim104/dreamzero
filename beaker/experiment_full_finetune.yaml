@@ -14,6 +14,7 @@ tasks:
         export NUM_GPUS=4
         export DREAMZERO_ROOT=/root/yejink/dreamzero
         export DROID_DATA_ROOT=/root/yejink/dreamzero/data/droid_lerobot
+        export DEEPSPEED_CFG=zero2 # use zero2 for speed
         bash /root/yejink/dreamzero/scripts/train/droid_training_full_finetune_wan22.sh
     resources:
       gpuCount: 4
@@ -26,6 +27,6 @@ tasks:
         source:
           weka: prior-default
     constraints:
-      cluster: [ ai2/neptune ]
+      cluster: [ ai2/saturn ] # neptune, saturn
     context:
       priority: normal

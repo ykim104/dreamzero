@@ -42,8 +42,7 @@ if [ "$DROID_DATA_ROOT" = "./data/droid_lerobot" ]; then
 fi
 OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_droid_wan22_full_finetune"}
 
-# 4× L40 (48GB each): use default. 8 GPUs: NUM_GPUS=8. Fits with zero2_offload; try DEEPSPEED_CFG=zero2 for speed.
-NUM_GPUS=${NUM_GPUS:-4}
+NUM_GPUS=${NUM_GPUS:-8}
 
 # Wan2.2-TI2V-5B checkpoint
 WAN22_CKPT_DIR=${WAN22_CKPT_DIR:-"$DREAMZERO_ROOT/checkpoints/Wan2.2-TI2V-5B"}
@@ -93,9 +92,6 @@ fi
 cd "$DREAMZERO_ROOT"
 
 # Full fine-tune: train_architecture=full, save_lora_only=false, ZeRO-2 (+ optional CPU offload)
-# Speed: ~24 min/100 steps with offload → 100k steps ≈ 400h. To speed up:
-#   - If you have enough GPU memory (e.g. 8× 40GB+): set DEEPSPEED_CFG=zero2 (no optimizer offload, much faster)
-#   - Increase dataloader_num_workers and pin_memory; optional: use_gradient_checkpointing=false if VRAM allows
 DEEPSPEED_CFG=${DEEPSPEED_CFG:-zero2_offload}
 "${RUN_CMD[@]}" \
     report_to=wandb \
@@ -118,6 +114,7 @@ DEEPSPEED_CFG=${DEEPSPEED_CFG:-zero2_offload}
     training_args.warmup_ratio=0.05 \
     output_dir=$OUTPUT_DIR \
     per_device_train_batch_size=1 \
+    global_batch_size=$((NUM_GPUS * 1)) \
     max_steps=100000 \
     weight_decay=1e-5 \
     save_total_limit=10 \
