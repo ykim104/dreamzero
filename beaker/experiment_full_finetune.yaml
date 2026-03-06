@@ -15,9 +15,11 @@ tasks:
         export DREAMZERO_ROOT=/root/yejink/dreamzero
         export DROID_DATA_ROOT=/root/yejink/dreamzero/data/droid_lerobot
         export DEEPSPEED_CFG=zero2 # use zero2 for speed
+        export GLOBAL_BATCH_SIZE=128
+        export PER_DEVICE_BS=4
         bash /root/yejink/dreamzero/scripts/train/droid_training_full_finetune_wan22.sh
     resources:
-      gpuCount: 4
+      gpuCount: 8
       memory: 1B # request minimal to get whatever is available
     envVars:
       - name: WANDB_API_KEY

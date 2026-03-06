@@ -42,7 +42,11 @@ if [ "$DROID_DATA_ROOT" = "./data/droid_lerobot" ]; then
 fi
 OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_droid_wan22_full_finetune"}
 
-NUM_GPUS=${NUM_GPUS:-8}
+NUM_GPUS=${NUM_GPUS:-4}
+PER_DEVICE_BS=${PER_DEVICE_BS:-1}
+# Global batch: default = NUM_GPUS * PER_DEVICE_BS. Override for larger effective batch, e.g. GLOBAL_BATCH_SIZE=128
+# (uses gradient accumulation; memory stays same. With 4 GPUs, 128 → grad_accum=32.)
+GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-$((NUM_GPUS * PER_DEVICE_BS))}
 
 # Wan2.2-TI2V-5B checkpoint
 WAN22_CKPT_DIR=${WAN22_CKPT_DIR:-"$DREAMZERO_ROOT/checkpoints/Wan2.2-TI2V-5B"}
@@ -113,8 +117,8 @@ DEEPSPEED_CFG=${DEEPSPEED_CFG:-zero2_offload}
     save_steps=1000 \
     training_args.warmup_ratio=0.05 \
     output_dir=$OUTPUT_DIR \
-    per_device_train_batch_size=1 \
-    global_batch_size=$((NUM_GPUS * 1)) \
+    per_device_train_batch_size=$PER_DEVICE_BS \
+    global_batch_size=$GLOBAL_BATCH_SIZE \
     max_steps=100000 \
     weight_decay=1e-5 \
     save_total_limit=10 \
