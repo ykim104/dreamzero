@@ -113,7 +113,7 @@ cd "$DREAMZERO_ROOT"
     training_args.warmup_ratio=0.05 \
     output_dir=$OUTPUT_DIR \
     per_device_train_batch_size=1 \
-    max_steps=100 \
+    max_steps=100000 \
     weight_decay=1e-5 \
     save_total_limit=10 \
     upload_checkpoints=false \
