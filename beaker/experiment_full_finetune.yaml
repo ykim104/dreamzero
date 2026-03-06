@@ -16,7 +16,7 @@ tasks:
         export DROID_DATA_ROOT=/root/yejink/dreamzero/data/droid_lerobot
         export DEEPSPEED_CFG=zero2 # use zero2 for speed
         export GLOBAL_BATCH_SIZE=128
-        export PER_DEVICE_BS=4
+        export PER_DEVICE_BS=1
         bash /root/yejink/dreamzero/scripts/train/droid_training_full_finetune_wan22.sh
     resources:
       gpuCount: 8
