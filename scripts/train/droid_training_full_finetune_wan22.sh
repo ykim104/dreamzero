@@ -40,7 +40,9 @@ DROID_DATA_ROOT=${DROID_DATA_ROOT:-"$DREAMZERO_ROOT/data/droid_lerobot"}
 if [ "$DROID_DATA_ROOT" = "./data/droid_lerobot" ]; then
     DROID_DATA_ROOT="$DREAMZERO_ROOT/data/droid_lerobot"
 fi
-OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_droid_wan22_full_finetune"}
+# Append timestamp to default output dir so concurrent runs don't conflict. Set OUTPUT_DIR explicitly to disable.
+TIMESTAMP=${TIMESTAMP:-$(date +%Y%m%d_%H%M%S)}
+OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_droid_wan22_full_finetune_${TIMESTAMP}"}
 
 NUM_GPUS=${NUM_GPUS:-4}
 PER_DEVICE_BS=${PER_DEVICE_BS:-1}
