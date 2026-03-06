@@ -1,11 +1,51 @@
 # @package _global_
-# DROID data config for Wan 5B (Wan2.2): 320x176 so latent frame_seqlen=55 matches DiT and frames align with action chunks.
-# Use with: data=dreamzero/droid_relative_wan22 (or override image_resolution in the base script).
+# DROID data config for Wan 5B (Wan2.2): 320x176 so latent frame_seqlen=55 matches DiT.
+# Extends base and droid settings directly to avoid Hydra nesting (dreamzero/droid_relative would double-resolve defaults).
 
 defaults:
-  - dreamzero/droid_relative
+  - dreamzero/base_48_wan_fine_aug_relative
   - _self_
 
-# Wan 5B expects 320x176 (frame_seqlen=55). Override base resolution so pipeline always feeds this size.
+# Wan 5B expects 320x176 (frame_seqlen=55)
 image_resolution_width: 320
 image_resolution_height: 176
+
+max_state_dim: 64
+use_global_metadata: false
+relative_action: true
+relative_action_per_horizon: false
+relative_action_keys:
+  - joint_position
+max_chunk_size: 5
+dataset_shard_sampling_rate: 0.1
+mixture_dataset_cls: groot.vla.data.dataset.lerobot_sharded.ShardedLeRobotMixtureDataset.from_mixture_spec
+single_dataset_cls: groot.vla.data.dataset.lerobot_sharded.ShardedLeRobotSubLangSingleActionChunkDatasetDROID
+droid_data_root: ???
+
+train_dataset:
+  _target_: ${mixture_dataset_cls}
+  _convert_: object
+  mixture_spec:
+    - dataset_path:
+        oxe_droid:
+          - ${droid_data_root}
+      dataset_weight: 1.0
+      distribute_weights: true
+
+  dataset_class: ${single_dataset_cls}
+  all_modality_configs: ${modality_configs}
+  all_transforms: ${transforms}
+  metadata_versions: ${metadata_versions}
+  fps: ${fps}
+  dataset_kwargs:
+    video_backend: decord
+    use_global_metadata: ${use_global_metadata}
+    max_chunk_size: ${max_chunk_size}
+    relative_action: ${relative_action}
+    relative_action_keys: ${relative_action_keys}
+    relative_action_per_horizon: ${relative_action_per_horizon}
+  mixture_kwargs:
+    training: true
+    balance_dataset_weights: false
+    seed: 42
+    shard_sampling_rate: ${dataset_shard_sampling_rate}
