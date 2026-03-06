@@ -8,15 +8,17 @@ defaults:
 
 # Wan2.2-TI2V-5B specific overrides
 # frame_seqlen must match DiT patch_embedding output per frame: (H//2)*(W//2) for stride (1,2,2).
-# 320x176 -> latent 20x11 -> patch output 10x5=50 per frame. 640x352 -> 40x22 -> 20x11=220.
-# DROID uses 320x176, so frame_seqlen=50.
+# WanVideoVAE38 has 16x spatial downscale. For even latent H,W (no crop in dynamics loss) use video
+# resolution with H,W divisible by 32: 160x320 -> latent 10x20 -> patch 5x10=50. Else 176x320 -> 11x20 (odd H).
 # Same as 5B pretrained: latent only (in_dim=48), first-frame via CLIP; no [x;y] concat.
 # Action/state invariant: need (noisy_frames-1)//num_frame_per_block >= 1, so min 3 frames per half.
-# DROID video sampling is 8n+1; dataset skips samples that would yield 1 frame (returns empty → sample skipped).
 frame_seqlen: 50
 
 action_head_cfg:
   config:
+    # 160x320 gives latent 10x20 (even); avoids dynamics-loss crop. Match data=dreamzero/droid_relative_wan22.
+    target_video_height: 160
+    target_video_width: 320
     diffusion_model_cfg:
       model_type: "ti2v"
       dim: 3072

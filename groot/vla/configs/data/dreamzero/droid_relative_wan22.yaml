@@ -1,14 +1,14 @@
 # @package _global_
-# DROID data config for Wan 5B (Wan2.2): 320x176 so patch tokens/frame=50 matches DiT frame_seqlen.
+# DROID data config for Wan 5B (Wan2.2): 320x160 so latent is 20x10 (even H,W) with WanVideoVAE38 (16x), frame_seqlen=50.
 # Extends base and droid settings directly to avoid Hydra nesting (dreamzero/droid_relative would double-resolve defaults).
 
 defaults:
   - dreamzero/base_48_wan_fine_aug_relative
   - _self_
 
-# Wan 5B expects 320x176 (frame_seqlen=50, patch output per frame)
+# Wan 5B: 160x320 (HxW) -> latent 10x20, (10//2)*(20//2)=50. Use H,W divisible by 32 so latent is even (no crop in loss).
 image_resolution_width: 320
-image_resolution_height: 176
+image_resolution_height: 160
 
 max_state_dim: 64
 use_global_metadata: false

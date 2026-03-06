@@ -132,7 +132,6 @@ cd "$DREAMZERO_ROOT"
     dataloader_num_workers=1 \
     save_lora_only=true \
     max_chunk_size=4 \
-    frame_seqlen=55 \
     save_strategy=no \
     droid_data_root=$DROID_DATA_ROOT \
     dit_version=$WAN22_CKPT_DIR \

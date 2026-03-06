@@ -126,7 +126,6 @@ cd "$DREAMZERO_ROOT"
     image_resolution_height=176 \
     save_lora_only=false \
     max_chunk_size=4 \
-    frame_seqlen=55 \
     save_strategy=no \
     droid_data_root=$DROID_DATA_ROOT \
     dit_version=$WAN22_CKPT_DIR \

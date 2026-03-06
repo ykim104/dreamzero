@@ -73,6 +73,10 @@ class WANPolicyHeadConfig(PretrainedConfig):
     tile_stride_height: int = field(default=18, metadata={"help": "Tile stride height."})
     tile_stride_width: int = field(default=16, metadata={"help": "Tile stride width."})
     num_frame_per_block: int = field(default=1, metadata={"help": "Number of frames per block."})
+    # Target video (H, W) for Wan22 resize. When set, videos are resized to this before VAE so latent
+    # spatial size matches. Use height/width divisible by 32 for WanVideoVAE38 (16x) so latent H,W are even.
+    target_video_height: int | None = field(default=None, metadata={"help": "Target video height for resize (e.g. 160 for even latent with VAE38)."})
+    target_video_width: int | None = field(default=None, metadata={"help": "Target video width for resize (e.g. 320)."})
 
     lora_rank: int = field(default=4, metadata={"help": "LoRA rank."})
     lora_alpha: int = field(default=4, metadata={"help": "LoRA alpha."})
@@ -626,17 +630,25 @@ class WANPolicyHead(ActionHead):
         # shape of B * max_length * dim
         prompt_embs = self.encode_prompt(data["text"], data["text_attention_mask"])
 
-        # Wan 5B (frame_seqlen=50 for patch output) expects 320x176; resize so latent tokens/frame matches DiT and frames align with action chunks
-        if getattr(self.model, "frame_seqlen", None) in (50, 55):
+        # Wan 5B: resize to target resolution so latent tokens/frame matches DiT. Use config target when set
+        # (e.g. 160x320 so latent is 10x20 with VAE38 16x → even H,W, no crop in dynamics loss); else 176x320.
+        target_h = getattr(self.config, "target_video_height", None)
+        target_w = getattr(self.config, "target_video_width", None)
+        if target_h is None or target_w is None:
+            if getattr(self.model, "frame_seqlen", None) in (50, 55):
+                target_h, target_w = 176, 320
+            else:
+                target_h, target_w = None, None
+        if target_h is not None and target_w is not None:
             _, _, _, h, w = videos.shape
-            if (h, w) != (176, 320):
+            if (h, w) != (target_h, target_w):
                 b, c, t, _, _ = videos.shape
                 videos = torch.nn.functional.interpolate(
                     videos.reshape(b * t, c, h, w),
-                    size=(176, 320),
+                    size=(target_h, target_w),
                     mode="bilinear",
                     align_corners=False,
-                ).reshape(b, c, t, 176, 320)
+                ).reshape(b, c, t, target_h, target_w)
 
         latents = self.encode_video(videos, self.tiled, (self.tile_size_height, self.tile_size_width), (self.tile_stride_height, self.tile_stride_width))
 
@@ -757,6 +769,12 @@ class WANPolicyHead(ActionHead):
                 )
 
             # Per-sample dynamics loss
+            # DiT patch_embedding uses stride (1,2,2), so output spatial size can be smaller than
+            # latent when H or W is odd (e.g. latent 11x20 -> model output 10x20). Crop target to match.
+            if training_target.shape != video_noise_pred.shape:
+                training_target = training_target[
+                    ..., : video_noise_pred.shape[3], : video_noise_pred.shape[4]
+                ]
             dynamics_loss_per_sample = torch.nn.functional.mse_loss(
                 video_noise_pred.float(), training_target.float(), reduction='none'
             ).mean(dim=(1,3,4))  # shape: [B, ...]
