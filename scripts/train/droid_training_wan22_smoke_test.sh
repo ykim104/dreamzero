@@ -112,7 +112,6 @@ echo "Smoke test: max_steps=2, NUM_GPUS=$NUM_GPUS, output=$OUTPUT_DIR (cwd=$DREA
     dataloader_persistent_workers=false \
     save_lora_only=true \
     max_chunk_size=4 \
-    frame_seqlen=55 \
     save_strategy=no \
     droid_data_root=$DROID_DATA_ROOT \
     dit_version=$WAN22_CKPT_DIR \
