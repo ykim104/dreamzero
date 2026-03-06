@@ -626,8 +626,8 @@ class WANPolicyHead(ActionHead):
         # shape of B * max_length * dim
         prompt_embs = self.encode_prompt(data["text"], data["text_attention_mask"])
 
-        # Wan 5B (frame_seqlen=55) expects 320x176; resize so latent tokens/frame matches DiT and frames align with action chunks
-        if getattr(self.model, "frame_seqlen", None) == 55:
+        # Wan 5B (frame_seqlen=50 for patch output) expects 320x176; resize so latent tokens/frame matches DiT and frames align with action chunks
+        if getattr(self.model, "frame_seqlen", None) in (50, 55):
             _, _, _, h, w = videos.shape
             if (h, w) != (176, 320):
                 b, c, t, _, _ = videos.shape
@@ -718,8 +718,9 @@ class WANPolicyHead(ActionHead):
         timestep_id_block = timestep_id_block.reshape(timestep_id_block.shape[0], -1)
         timestep_id = torch.concat([timestep_id[:, :1], timestep_id_block], dim=1)
         _, num_frames, num_channels, height, width = noise.shape
-        frame_seqlen = int(height * width / 4)
-        seq_len = num_frames * frame_seqlen
+        # DiT patch_embedding uses stride (1,2,2), so sequence length is num_frames * (H//2) * (W//2)
+        tokens_per_frame = (height // 2) * (width // 2)
+        seq_len = num_frames * tokens_per_frame
 
         timestep = self.scheduler.timesteps[timestep_id].to(self._device)
         noisy_latents = self.scheduler.add_noise(latents.flatten(0, 1), noise.flatten(0, 1), timestep.flatten(0, 1)).unflatten(0, (noise.shape[0], noise.shape[1]))
@@ -1061,8 +1062,10 @@ class WANPolicyHead(ActionHead):
         noise_action = self.generate_noise((image.shape[0], self.action_horizon, self.model.action_dim), seed=self.seed, device='cuda', dtype=torch.bfloat16)
         batch_size, num_channels, num_frames, height, width = noise_obs.shape
         ######### Generate video #########
-        frame_seqlen = int(height * width / 4)
-        seq_len = frame_seqlen * num_frames
+        # DiT patch_embedding uses stride (1,2,2), so tokens per frame = (H//2)*(W//2)
+        tokens_per_frame = (height // 2) * (width // 2)
+        frame_seqlen = tokens_per_frame
+        seq_len = num_frames * frame_seqlen
 
         image = image.transpose(1, 2)
         noise_obs = noise_obs.transpose(1, 2)

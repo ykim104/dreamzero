@@ -7,12 +7,13 @@ defaults:
   - wan_flow_matching_action_tf
 
 # Wan2.2-TI2V-5B specific overrides
-# frame_seqlen for Wan2.2 VAE (16x spatial): 320x176 -> 20*11/4=55, 640x352 -> 40*22/4=220
-# DROID uses 320x176, so frame_seqlen=55
+# frame_seqlen must match DiT patch_embedding output per frame: (H//2)*(W//2) for stride (1,2,2).
+# 320x176 -> latent 20x11 -> patch output 10x5=50 per frame. 640x352 -> 40x22 -> 20x11=220.
+# DROID uses 320x176, so frame_seqlen=50.
 # Same as 5B pretrained: latent only (in_dim=48), first-frame via CLIP; no [x;y] concat.
 # Action/state invariant: need (noisy_frames-1)//num_frame_per_block >= 1, so min 3 frames per half.
 # DROID video sampling is 8n+1; dataset skips samples that would yield 1 frame (returns empty → sample skipped).
-frame_seqlen: 55
+frame_seqlen: 50
 
 action_head_cfg:
   config:
