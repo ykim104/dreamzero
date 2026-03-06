@@ -1003,6 +1003,25 @@ class WANPolicyHead(ActionHead):
         state_features = state_features.to(dtype=torch.bfloat16)
         videos = videos.to(dtype=torch.bfloat16)
 
+        # Wan 5B: same as training — resize to target resolution so latent matches DiT
+        target_h = getattr(self.config, "target_video_height", None)
+        target_w = getattr(self.config, "target_video_width", None)
+        if target_h is None or target_w is None:
+            if getattr(self.model, "frame_seqlen", None) in (50, 55):
+                target_h, target_w = 176, 320
+            else:
+                target_h, target_w = None, None
+        if target_h is not None and target_w is not None:
+            _, _, _, h, w = videos.shape
+            if (h, w) != (target_h, target_w):
+                b, c, t, _, _ = videos.shape
+                videos = torch.nn.functional.interpolate(
+                    videos.reshape(b * t, c, h, w),
+                    size=(target_h, target_w),
+                    mode="bilinear",
+                    align_corners=False,
+                ).reshape(b, c, t, target_h, target_w)
+
         if self.language is None:
             print("language is None, reset current_start_frame to 0")
             self.language = data["text"]
