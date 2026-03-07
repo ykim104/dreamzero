@@ -203,13 +203,21 @@ class BaseGrootSimPolicy(BaseTianshouPolicy):
 
 
 def _update_tokenizer_path_in_config(cfg, new_path: str) -> None:
-    """Recursively update tokenizer_path in OmegaConf config (e.g. for local checkpoint loading)."""
+    """Update tokenizer_path in the transforms subtree only (avoids trainer.model etc.)."""
     from omegaconf import DictConfig, ListConfig
     if isinstance(cfg, DictConfig):
         if "tokenizer_path" in cfg:
             cfg.tokenizer_path = new_path
-        for v in cfg.values():
-            _update_tokenizer_path_in_config(v, new_path)
+        # Only recurse via "transforms" to avoid triggering resolution of trainer, etc.
+        if "transforms" not in cfg:
+            return
+        sub = cfg.transforms
+        if isinstance(sub, DictConfig):
+            for v in sub.values():
+                _update_tokenizer_path_in_config(v, new_path)
+        elif isinstance(sub, ListConfig):
+            for v in sub:
+                _update_tokenizer_path_in_config(v, new_path)
     elif isinstance(cfg, ListConfig):
         for v in cfg:
             _update_tokenizer_path_in_config(v, new_path)
