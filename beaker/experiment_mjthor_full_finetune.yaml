@@ -13,8 +13,8 @@ tasks:
       - |
         export NUM_GPUS=4
         export DREAMZERO_ROOT=/root/yejink/dreamzero
-        export MJTHOR_DATA_ROOT=/weka/prior/datasets/robomolmo/feb10_franka_and_rby1/FrankaPickOmniCamConfig/train
-        export DEEPSPEED_CFG=zero2
+        export MJTHOR_DATA_ROOT=/root/datasets/robomolmo/feb10_franka_and_rby1/FrankaPickOmniCamConfig/train
+        export DEEPSPEED_CFG=zero2_offload
         bash /root/yejink/dreamzero/scripts/train/mjthor_training_full_finetune_wan22.sh
     resources:
       gpuCount: 4
@@ -27,6 +27,6 @@ tasks:
         source:
           weka: prior-default
     constraints:
-      cluster: [ ai2/saturn ]
+      cluster: [ ai2/neptune ] # saturn works with zero2, neptune works with zero2-offload
     context:
       priority: normal

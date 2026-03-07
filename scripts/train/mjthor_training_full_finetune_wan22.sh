@@ -89,6 +89,12 @@ fi
 cd "$DREAMZERO_ROOT"
 
 DEEPSPEED_CFG=${DEEPSPEED_CFG:-zero2_offload}
+# HuggingFace TrainingArguments requires an absolute path to the DeepSpeed config
+DEEPSPEED_CFG_PATH="$DREAMZERO_ROOT/groot/vla/configs/deepspeed/${DEEPSPEED_CFG}.json"
+if [ ! -f "$DEEPSPEED_CFG_PATH" ]; then
+    echo "ERROR: DeepSpeed config not found at $DEEPSPEED_CFG_PATH"
+    exit 1
+fi
 "${RUN_CMD[@]}" \
     report_to=wandb \
     data=dreamzero/mjthor_relative \
@@ -105,7 +111,7 @@ DEEPSPEED_CFG=${DEEPSPEED_CFG:-zero2_offload}
     num_state_per_block=1 \
     seed=42 \
     training_args.learning_rate=1e-5 \
-    training_args.deepspeed="groot/vla/configs/deepspeed/${DEEPSPEED_CFG}.json" \
+    training_args.deepspeed="$DEEPSPEED_CFG_PATH" \
     save_steps=1000 \
     training_args.warmup_ratio=0.05 \
     output_dir=$OUTPUT_DIR \
