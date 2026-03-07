@@ -364,6 +364,19 @@ class GrootSimPolicy(BaseGrootSimPolicy):
             self.embodiment_tag = EmbodimentTag.GR1_UNIFIED_OFFLINE_RL
         metadata = DatasetMetadata.model_validate(metadatas[self.embodiment_tag.value])
 
+        # If the model's action head has target_video_height/width (e.g. DreamZero Wan 5B), use that
+        # as the expected video resolution so the transform matches the model. metadata.json can
+        # otherwise contain a different resolution (e.g. 180x320) from dataset config.
+        if hasattr(self.trained_model, "action_head") and hasattr(
+            self.trained_model.action_head, "config"
+        ):
+            cfg = self.trained_model.action_head.config
+            target_h = getattr(cfg, "target_video_height", None)
+            target_w = getattr(cfg, "target_video_width", None)
+            if target_h is not None and target_w is not None and metadata.modalities.video:
+                for key in metadata.modalities.video.keys():
+                    metadata.modalities.video[key].resolution = (int(target_w), int(target_h))
+
         # 2.2. Get the eval transforms
         assert (
             self.embodiment_tag.value in train_cfg.transforms

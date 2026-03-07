@@ -293,7 +293,6 @@ class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
 
             return epsilon
 
-    @torch.compile(mode="reduce-overhead", fullgraph=True, dynamic=False)
     def multistep_uni_p_bh_update(
         self,
         model_output: torch.Tensor,
@@ -405,7 +404,6 @@ class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
         x_t = x_t.to(x.dtype)
         return x_t
 
-    @torch.compile(mode="reduce-overhead", fullgraph=True, dynamic=False)
     def multistep_uni_c_bh_update(
         self,
         this_model_output: torch.Tensor,

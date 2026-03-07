@@ -1170,6 +1170,20 @@ class CausalWanAttentionBlock(nn.Module):
         """
         e = (self.modulation.unsqueeze(1) + e).chunk(6, dim=2)
 
+        # Align modulation sequence length to x so mul/add broadcast (e.g. when F != L under compile)
+        L = x.shape[1]
+        aligned = []
+        for part in e:
+            L_e = part.shape[1]
+            if L_e == L:
+                aligned.append(part)
+            elif L_e >= L:
+                aligned.append(part[:, :L])
+            else:
+                repeat = (L + L_e - 1) // L_e
+                aligned.append(part.repeat_interleave(repeat, dim=1)[:, :L])
+        e = tuple(aligned)
+
         # self-attention
         y, updated_kv_cache = self.self_attn(
             x=(self.norm1(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2)),
@@ -1220,6 +1234,19 @@ class CausalHead(nn.Module):
             e(Tensor): Shape [B, F, 1, C]
         """
         e = (self.modulation.unsqueeze(1) + e).chunk(2, dim=2)
+        # Align modulation sequence length to x (e.g. when F != L1 under compile)
+        L = x.shape[1]
+        aligned = []
+        for part in e:
+            L_e = part.shape[1]
+            if L_e == L:
+                aligned.append(part)
+            elif L_e >= L:
+                aligned.append(part[:, :L])
+            else:
+                repeat = (L + L_e - 1) // L_e
+                aligned.append(part.repeat_interleave(repeat, dim=1)[:, :L])
+        e = tuple(aligned)
         x = (self.head(self.norm(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2)))
         return x
 
@@ -1738,8 +1765,13 @@ class CausalWanModel(ModelMixin, ConfigMixin):
             action_length = 0
             action_register_length = None
 
-        # time embeddings
-        timestep = timestep.unsqueeze(-1).expand(B, F, seq_len // F).reshape(B, -1)
+        # time embeddings: expand to exactly seq_len so e matches x (5B: frame_seqlen=50, 1 frame -> 50 tokens)
+        if F <= seq_len:
+            repeat = (seq_len + F - 1) // F
+            timestep = timestep.repeat_interleave(repeat, dim=1)[:, :seq_len]
+        else:
+            indices = torch.linspace(0, F - 1, seq_len, device=timestep.device, dtype=torch.long)
+            timestep = timestep[:, indices]
 
         if action is not None:
             assert timestep_action is not None

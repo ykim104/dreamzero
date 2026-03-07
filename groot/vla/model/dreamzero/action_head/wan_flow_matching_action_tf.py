@@ -490,15 +490,18 @@ class WANPolicyHead(ActionHead):
     ) -> tuple[KVCacheType, KVCacheType]:
         """
         Initialize a Per-GPU KV cache for the Wan model.
+        Use the model's num_heads and head_dim (5B has 24 heads, 14B has 40).
         """
+        num_heads = self.model.num_heads
+        head_dim = self.model.dim // num_heads
         kv_cache1: KVCacheType = []
         kv_cache_neg: KVCacheType = []
         for _ in range(self.model.num_layers):
             kv_cache1.append(
-               torch.zeros([2, batch_size, 0, 40, 128], dtype=dtype, device=device),
+                torch.zeros([2, batch_size, 0, num_heads, head_dim], dtype=dtype, device=device),
             )
             kv_cache_neg.append(
-                torch.zeros([2, batch_size, 0, 40, 128], dtype=dtype, device=device),
+                torch.zeros([2, batch_size, 0, num_heads, head_dim], dtype=dtype, device=device),
             )
 
         return kv_cache1, kv_cache_neg
@@ -508,16 +511,19 @@ class WANPolicyHead(ActionHead):
     ) -> tuple[KVCacheType, KVCacheType]:
         """
         Initialize a Per-GPU cross-attention cache for the Wan model.
+        Use the model's num_heads and head_dim (5B has 24 heads, 14B has 40).
         """
+        num_heads = self.model.num_heads
+        head_dim = self.model.dim // num_heads
         crossattn_cache: KVCacheType = []
         crossattn_cache_neg: KVCacheType = []
 
         for _ in range(self.model.num_layers):
             crossattn_cache.append(
-                torch.zeros([2, batch_size, 512, 40, 128], dtype=dtype, device=device),
+                torch.zeros([2, batch_size, 512, num_heads, head_dim], dtype=dtype, device=device),
             )
             crossattn_cache_neg.append(
-                torch.zeros([2, batch_size, 512, 40, 128], dtype=dtype, device=device),
+                torch.zeros([2, batch_size, 512, num_heads, head_dim], dtype=dtype, device=device),
             )
 
         return crossattn_cache, crossattn_cache_neg
@@ -1095,7 +1101,7 @@ class WANPolicyHead(ActionHead):
 
         end_vae_event.record()
 
-        noise_obs = self.generate_noise((image.shape[0], 16, self.num_frame_per_block, height//8, width//8), seed=self.seed, device='cuda', dtype=torch.bfloat16)
+        noise_obs = self.generate_noise((image.shape[0], image.shape[1], self.num_frame_per_block, image.shape[3], image.shape[4]), seed=self.seed, device='cuda', dtype=torch.bfloat16)
         noise_action = self.generate_noise((image.shape[0], self.action_horizon, self.model.action_dim), seed=self.seed, device='cuda', dtype=torch.bfloat16)
         batch_size, num_channels, num_frames, height, width = noise_obs.shape
         ######### Generate video #########
@@ -1353,13 +1359,10 @@ class WANPolicyHead(ActionHead):
         ENABLE_TENSORRT = os.getenv("ENABLE_TENSORRT", "False").lower() == "true"
         LOAD_TRT_ENGINE = os.getenv("LOAD_TRT_ENGINE", None)
 
-        # Torch compile the modules.
+        # Torch compile the modules. Skip _forward_blocks: Dynamo with fullgraph can fail on
+        # shape variation (e.g. x [1,50,C] vs e [1,200,C]); the block aligns e to x at runtime.
         if not ENABLE_TENSORRT:
-            print("Torch compiling the Wan, TextEncoder, ImageEncoder, and VAE modules.")
-
-            self.model._forward_blocks = torch.compile(
-                mode="reduce-overhead", fullgraph=True, dynamic=False,
-            )(self.model._forward_blocks)
+            print("Torch compiling the TextEncoder, ImageEncoder, and VAE modules (Wan _forward_blocks not compiled).")
 
             self.text_encoder.forward = torch.compile(
                 mode="reduce-overhead", fullgraph=True, dynamic=False,
