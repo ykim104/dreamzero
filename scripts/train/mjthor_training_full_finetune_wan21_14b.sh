@@ -1,14 +1,12 @@
 #!/bin/bash
-# DreamZero MjThor Full Fine-Tuning Script with Wan2.2-TI2V-5B backbone
+# DreamZero MjThor Full Fine-Tuning Script with Wan2.1-I2V-14B-480P backbone
 #
 # Usage:
-#   bash scripts/train/mjthor_training_full_finetune_wan22.sh
+#   bash scripts/train/mjthor_training_full_finetune_wan21_14b.sh
 #
 # Prerequisites:
 #   - MjThor dataset at MJTHOR_DATA_ROOT (default: /weka/prior/datasets/robomolmo/feb10_franka_and_rby1/FrankaPickOmniCamConfig/train)
-#   - Wan2.2-TI2V-5B weights (auto-downloaded or pre-downloaded from HuggingFace)
-#     huggingface-cli download Wan-AI/Wan2.2-TI2V-5B --local-dir ./checkpoints/Wan2.2-TI2V-5B
-#   - Image encoder (CLIP) from Wan2.1 - Wan2.2-TI2V-5B does not include it
+#   - Wan2.1-I2V-14B-480P weights (auto-downloaded or pre-downloaded from HuggingFace)
 #     huggingface-cli download Wan-AI/Wan2.1-I2V-14B-480P --local-dir ./checkpoints/Wan2.1-I2V-14B-480P
 #   - umt5-xxl tokenizer (auto-downloaded or pre-downloaded)
 #     huggingface-cli download google/umt5-xxl --local-dir ./checkpoints/umt5-xxl
@@ -39,32 +37,26 @@ fi
 
 # ============ USER CONFIGURATION ============
 MJTHOR_DATA_ROOT=${MJTHOR_DATA_ROOT:-"/weka/prior/datasets/robomolmo/feb10_franka_and_rby1/FrankaPickOmniCamConfig/train"}
-OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_mjthor_wan22_full_finetune"}
+OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_mjthor_wan21_14b_full_finetune"}
 
 NUM_GPUS=${NUM_GPUS:-1}
 PER_DEVICE_BS=${PER_DEVICE_BS:-1}
 GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-$((NUM_GPUS * PER_DEVICE_BS))}
 
-# Wan2.2-TI2V-5B checkpoint
-WAN22_CKPT_DIR=${WAN22_CKPT_DIR:-"$DREAMZERO_ROOT/checkpoints/Wan2.2-TI2V-5B"}
-IMAGE_ENCODER_DIR=${IMAGE_ENCODER_DIR:-"$DREAMZERO_ROOT/checkpoints/Wan2.1-I2V-14B-480P"}
+# Wan2.1-I2V-14B-480P checkpoint (14B model; includes VAE and CLIP)
+WAN14B_CKPT_DIR=${WAN14B_CKPT_DIR:-"$DREAMZERO_ROOT/checkpoints/Wan2.1-I2V-14B-480P"}
 TOKENIZER_DIR=${TOKENIZER_DIR:-"$DREAMZERO_ROOT/checkpoints/umt5-xxl"}
 # =============================================
 
 # ============ AUTO-DOWNLOAD WEIGHTS ============
-if [ ! -d "$WAN22_CKPT_DIR" ] || [ -z "$(ls -A "$WAN22_CKPT_DIR" 2>/dev/null)" ]; then
-    echo "Wan2.2-TI2V-5B not found at $WAN22_CKPT_DIR. Downloading from HuggingFace..."
-    huggingface-cli download Wan-AI/Wan2.2-TI2V-5B --local-dir "$WAN22_CKPT_DIR"
+if [ ! -d "$WAN14B_CKPT_DIR" ] || [ -z "$(ls -A "$WAN14B_CKPT_DIR" 2>/dev/null)" ]; then
+    echo "Wan2.1-I2V-14B-480P not found at $WAN14B_CKPT_DIR. Downloading from HuggingFace..."
+    huggingface-cli download Wan-AI/Wan2.1-I2V-14B-480P --local-dir "$WAN14B_CKPT_DIR"
 fi
 
 if [ ! -d "$TOKENIZER_DIR" ] || [ -z "$(ls -A "$TOKENIZER_DIR" 2>/dev/null)" ]; then
     echo "umt5-xxl tokenizer not found at $TOKENIZER_DIR. Downloading from HuggingFace..."
     huggingface-cli download google/umt5-xxl --local-dir "$TOKENIZER_DIR"
-fi
-
-if [ ! -f "$IMAGE_ENCODER_DIR/models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth" ]; then
-    echo "Image encoder not found. Downloading Wan2.1-I2V-14B-480P (for CLIP only)..."
-    huggingface-cli download Wan-AI/Wan2.1-I2V-14B-480P --local-dir "$IMAGE_ENCODER_DIR"
 fi
 # ================================================
 
@@ -92,12 +84,13 @@ fi
 cd "$DREAMZERO_ROOT"
 
 DEEPSPEED_CFG=${DEEPSPEED_CFG:-zero2_offload}
-# HuggingFace TrainingArguments requires an absolute path to the DeepSpeed config
 DEEPSPEED_CFG_PATH="$DREAMZERO_ROOT/groot/vla/configs/deepspeed/${DEEPSPEED_CFG}.json"
 if [ ! -f "$DEEPSPEED_CFG_PATH" ]; then
     echo "ERROR: DeepSpeed config not found at $DEEPSPEED_CFG_PATH"
     exit 1
 fi
+
+# 14B model: wan_flow_matching_action_tf (no _wan22), num_frame_per_block=1, num_action_per_block=32, frame_seqlen=880, image height 176
 "${RUN_CMD[@]}" \
     report_to=wandb \
     data=dreamzero/mjthor_relative \
@@ -107,11 +100,12 @@ fi
     action_horizon=24 \
     num_views=3 \
     model=dreamzero/vla \
-    model/dreamzero/action_head=wan_flow_matching_action_tf_wan22 \
+    model/dreamzero/action_head=wan_flow_matching_action_tf \
     model/dreamzero/transform=dreamzero_cotrain \
-    num_frame_per_block=2 \
-    num_action_per_block=24 \
+    num_frame_per_block=1 \
+    num_action_per_block=32 \
     num_state_per_block=1 \
+    frame_seqlen=880 \
     seed=42 \
     training_args.learning_rate=1e-5 \
     training_args.deepspeed="$DEEPSPEED_CFG_PATH" \
@@ -128,16 +122,16 @@ fi
     tf32=true \
     eval_bf16=true \
     dataloader_pin_memory=true \
-    dataloader_num_workers=4 \
+    dataloader_num_workers=0 \
     image_resolution_width=320 \
-    image_resolution_height=160 \
+    image_resolution_height=176 \
     save_lora_only=false \
     max_chunk_size=4 \
     save_strategy=steps \
     train_dataset.num_steps_per_shard=5000 \
     mjthor_data_root=$MJTHOR_DATA_ROOT \
-    dit_version=$WAN22_CKPT_DIR \
-    text_encoder_pretrained_path=$WAN22_CKPT_DIR/models_t5_umt5-xxl-enc-bf16.pth \
-    image_encoder_pretrained_path=$IMAGE_ENCODER_DIR/models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth \
-    vae_pretrained_path=$WAN22_CKPT_DIR/Wan2.2_VAE.pth \
+    dit_version=$WAN14B_CKPT_DIR \
+    text_encoder_pretrained_path=$WAN14B_CKPT_DIR/models_t5_umt5-xxl-enc-bf16.pth \
+    image_encoder_pretrained_path=$WAN14B_CKPT_DIR/models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth \
+    vae_pretrained_path=$WAN14B_CKPT_DIR/Wan2.1_VAE.pth \
     tokenizer_path=$TOKENIZER_DIR
