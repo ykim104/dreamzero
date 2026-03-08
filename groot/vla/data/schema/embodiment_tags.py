@@ -346,3 +346,8 @@ class EmbodimentTag(Enum):
     """
     The Mecka robot with hands.
     """
+
+    MJTHOR = "mjthor"
+    """
+    MjThor simulated pick-and-place environment.
+    """

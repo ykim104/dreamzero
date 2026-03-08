@@ -146,6 +146,13 @@ def collate(features: List[dict], tokenizer: AutoTokenizer, num_views=3, embodim
                         item = "A multi-view video shows that a robot " + str(item).lower() + " The video is split into four views: The top-left view shows the camera view from the robot's head, the top-right view shows the camera view from the right hand, the bottom-left view shows the camera view from the left hand, and the bottom-right view is a black screen (inactive view). The robot " + str(item).lower()
                     elif elem["embodiment_id"] == embodiment_tag_mapping[EmbodimentTag.YAM.value]:
                         item = "A multi-view video shows that a robot " + str(item).lower() + " The video is split into four views: The top-left view shows the top camera, the top-right view shows the right camera, the bottom-left view shows the left camera, and the bottom-right view is a black screen. The robot " + str(item).lower()
+                    elif elem["embodiment_id"] == embodiment_tag_mapping[EmbodimentTag.MJTHOR.value]:
+                        item = (
+                            "A multi-view video shows that a robot "
+                            + str(item).lower()
+                            + " The video is split into three views: The top view shows the camera view from the robot's wrist, the bottom-left view shows the camera view from the left exterior camera, and the bottom-right view shows the camera view from the right exterior camera. During training, one of the two bottom exterior views may be a black screen (dropped view). The robot "
+                            + str(item).lower()
+                        )
                     else:
                         raise ValueError(f"Embodiment ID {elem['embodiment_id']} not supported.")   
                     output_values.append(item)
@@ -329,7 +336,7 @@ class DreamTransform(InvertibleModalityTransform):
             #
             # Training-time augmentation:
             # - Randomly drop (black out) either left_ext or right_ext.
-            if self.embodiment_tag == EmbodimentTag.OXE_DROID and v >= 3:
+            if self.embodiment_tag in (EmbodimentTag.OXE_DROID, EmbodimentTag.MJTHOR) and v >= 3:
                 left_exterior = images[0]   # (t, c, h, w)
                 right_exterior = images[1]  # (t, c, h, w)
                 wrist_image = images[2]     # (t, c, h, w)

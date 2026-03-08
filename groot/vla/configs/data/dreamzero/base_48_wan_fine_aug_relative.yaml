@@ -342,6 +342,79 @@ transform_yam:
     - ${model_specific_transform}
 
 ################################################################################
+# mjthor (MjThor sim pick-and-place: arm+gripper, 2 cameras)
+################################################################################
+
+modality_config_mjthor:
+  video:
+    _target_: groot.vla.data.dataset.ModalityConfig
+    delta_indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
+    eval_delta_indices: [0]
+    modality_keys:
+      - video.droid_shoulder_light_randomization
+      - video.randomized_zed2_analogue_1
+      - video.wrist_camera_zed_mini
+  state:
+    _target_: groot.vla.data.dataset.ModalityConfig
+    delta_indices: [0]
+    modality_keys:
+      - state.qpos_arm
+      - state.qpos_gripper
+  action:
+    _target_: groot.vla.data.dataset.ModalityConfig
+    delta_indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+    modality_keys:
+      - action.joint_pos_arm
+      - action.joint_pos_gripper
+  language:
+    _target_: groot.vla.data.dataset.ModalityConfig
+    delta_indices: [0]
+    modality_keys:
+      - annotation.language.task_description
+
+transform_mjthor:
+  _target_: groot.vla.data.transform.ComposedModalityTransform
+  transforms:
+    # Video transforms
+    - <<: *totensor_cfg
+      apply_to: ${modality_config_mjthor.video.modality_keys}
+    - <<: *crop_cfg
+      apply_to: ${modality_config_mjthor.video.modality_keys}
+    - <<: *resize_cfg
+      apply_to: ${modality_config_mjthor.video.modality_keys}
+    - <<: *color_jitter_cfg
+      apply_to: ${modality_config_mjthor.video.modality_keys}
+    - <<: *to_numpy_cfg
+      apply_to: ${modality_config_mjthor.video.modality_keys}
+
+    # State transforms
+    - _target_: groot.vla.data.transform.StateActionToTensor
+      apply_to: ${modality_config_mjthor.state.modality_keys}
+    - _target_: groot.vla.data.transform.StateActionTransform
+      apply_to: ${modality_config_mjthor.state.modality_keys}
+      normalization_modes:
+        state.qpos_arm: q99
+        state.qpos_gripper: q99
+
+    # Action transforms
+    - _target_: groot.vla.data.transform.StateActionToTensor
+      apply_to: ${modality_config_mjthor.action.modality_keys}
+    - _target_: groot.vla.data.transform.StateActionTransform
+      apply_to: ${modality_config_mjthor.action.modality_keys}
+      normalization_modes:
+        action.joint_pos_arm: q99
+        action.joint_pos_gripper: q99
+
+    # ConcatTransform
+    - _target_: groot.vla.data.transform.ConcatTransform
+      video_concat_order: ${modality_config_mjthor.video.modality_keys}
+      state_concat_order: ${modality_config_mjthor.state.modality_keys}
+      action_concat_order: ${modality_config_mjthor.action.modality_keys}
+
+    # Model-specific transform
+    - ${model_specific_transform}
+
+################################################################################
 # Modality Configs
 ################################################################################
 
@@ -349,6 +422,7 @@ modality_configs:
   oxe_droid: ${modality_config_oxe_droid}
   agibot: ${modality_config_agibot}
   yam: ${modality_config_yam}
+  mjthor: ${modality_config_mjthor}
 
 ################################################################################
 # Transforms
@@ -358,6 +432,7 @@ transforms:
   oxe_droid: ${transform_oxe_droid}
   agibot: ${transform_agibot}
   yam: ${transform_yam}
+  mjthor: ${transform_mjthor}
 
 ################################################################################
 # Metadata Versions
@@ -367,6 +442,7 @@ metadata_versions:
   oxe_droid: '0221'
   agibot: '0221'
   yam: '0221'
+  mjthor: null
 
 ################################################################################
 # FPS (per embodiment, null means use dataset default)
@@ -374,3 +450,4 @@ metadata_versions:
 
 fps:
   yam: 30
+  mjthor: null

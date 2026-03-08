@@ -46,6 +46,7 @@ from transformers.trainer import (
 
 import groot.vla.common.utils as U
 from groot.vla.data.dataset.lerobot_sharded import ShardedLeRobotMixtureDataset
+from groot.vla.data.dataset.mjthor import MjThorMixtureDataset
 from groot.vla.data.schema import EmbodimentTag
 from groot.vla.data.transform import ComposedModalityTransform
 from groot.vla.experiment.utils import (
@@ -542,7 +543,7 @@ class BaseTrainer(transformers.Trainer):
             raise ValueError("Trainer: training requires a train_dataset.")
 
         train_dataset = self.train_dataset
-        if not isinstance(train_dataset, (ShardedLeRobotMixtureDataset)):
+        if not isinstance(train_dataset, (ShardedLeRobotMixtureDataset, MjThorMixtureDataset)):
             return super().get_train_dataloader()
 
         # During resume, don't skip the data
@@ -568,8 +569,10 @@ class BaseTrainer(transformers.Trainer):
             "collate_fn": data_collator,
             "num_workers": self.args.dataloader_num_workers,
             "pin_memory": self.args.dataloader_pin_memory,
-            "persistent_workers": self.args.dataloader_persistent_workers,
         }
+        # persistent_workers is only valid when num_workers > 0 (PyTorch raises otherwise)
+        if self.args.dataloader_num_workers > 0:
+            dataloader_params["persistent_workers"] = self.args.dataloader_persistent_workers
 
         return DataLoader(train_dataset, **dataloader_params)
 
