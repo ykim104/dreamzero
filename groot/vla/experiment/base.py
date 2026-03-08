@@ -81,6 +81,41 @@ LAYERNORM_LAYERS = [
 ]
 
 
+def _deepspeed_uses_optimizer_offload(deepspeed_arg) -> bool:
+    """True if the DeepSpeed config has zero_optimization.offload_optimizer (e.g. zero2_offload)."""
+    if not deepspeed_arg or not isinstance(deepspeed_arg, (str, Path)):
+        return False
+    path = Path(deepspeed_arg)
+    if not path.suffix == ".json":
+        return False
+    try:
+        with open(path) as f:
+            ds_config = json.load(f)
+        return bool(ds_config.get("zero_optimization", {}).get("offload_optimizer"))
+    except Exception:
+        return False
+
+
+class DeepSpeedBiasCorrectionCallback(TrainerCallback):
+    """Ensures optimizer param groups have 'bias_correction' for DeepSpeed CPU Adam (ZeRO offload)."""
+
+    def __init__(self, trainer=None):
+        self._trainer = trainer
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        if not getattr(args, "deepspeed", None):
+            return
+        if not _deepspeed_uses_optimizer_offload(args.deepspeed):
+            return
+        trainer = self._trainer
+        if trainer is None:
+            return
+        opt = getattr(trainer, "optimizer", None)
+        if opt is not None and hasattr(opt, "param_groups"):
+            for group in opt.param_groups:
+                group.setdefault("bias_correction", True)
+
+
 class LossLoggerCallback(TrainerCallback):
     """Callback that writes per-step loss metrics to a JSONL file for offline analysis."""
 
@@ -472,6 +507,12 @@ class BaseTrainer(transformers.Trainer):
             )
             self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
 
+            # DeepSpeed CPU Adam (ZeRO offload) expects 'bias_correction' in each param group.
+            # HuggingFace Trainer's AdamW does not set it, causing KeyError in cpu_adam.step().
+            if getattr(self.args, "deepspeed", None):
+                for group in self.optimizer.param_groups:
+                    group.setdefault("bias_correction", True)
+
         return self.optimizer
 
     def save_model(self, output_dir: Optional[str], _internal_call: bool):
@@ -805,6 +846,9 @@ class BaseExperiment(ABC):
 
         loss_log_path = str(Path(training_args.output_dir) / "loss_log.jsonl")
         trainer.add_callback(LossLoggerCallback(output_path=loss_log_path))
+
+        # DeepSpeed ZeRO offload (CPU Adam) needs 'bias_correction' in param groups; patch at train start
+        trainer.add_callback(DeepSpeedBiasCorrectionCallback(trainer=trainer))
 
         # Add profiling callback (local profiling only, no S3 upload)
         # Local: {output_dir}/profiling/rank_{id}/*.pt.trace.json
