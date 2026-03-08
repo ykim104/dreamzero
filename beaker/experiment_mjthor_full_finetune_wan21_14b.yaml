@@ -1,0 +1,32 @@
+# DreamZero MjThor Full Fine-Tune on Beaker (Wan2.1-I2V-14B-480P, 4 GPUs)
+# Submit: beaker experiment create beaker/experiment_mjthor_full_finetune_wan21_14b.yaml --workspace ai2/mujoco-thor-objaverse
+version: v2
+description: DreamZero MjThor Wan2.1-14B full finetune
+budget: ai2/oe-mm
+tasks:
+  - name: mjthor-training-full-finetune-wan21-14b
+    image:
+      beaker: yejink/dreamzero-wan22
+    command:
+      - /bin/bash
+      - -c
+      - |
+        export NUM_GPUS=4
+        export DREAMZERO_ROOT=/root/yejink/dreamzero
+        export MJTHOR_DATA_ROOT=/root/datasets/robomolmo/feb10_franka_and_rby1/FrankaPickOmniCamConfig/train
+        export DEEPSPEED_CFG=zero2_offload
+        bash /root/yejink/dreamzero/scripts/train/mjthor_training_full_finetune_wan21_14b.sh
+    resources:
+      gpuCount: 4
+      memory: 1B
+    envVars:
+      - name: WANDB_API_KEY
+        secret: wandb-api-key
+    datasets:
+      - mountPath: /root
+        source:
+          weka: prior-default
+    constraints:
+      cluster: [ ai2/neptune ]
+    context:
+      priority: normal

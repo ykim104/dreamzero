@@ -128,7 +128,7 @@ fi
     tf32=true \
     eval_bf16=true \
     dataloader_pin_memory=true \
-    dataloader_num_workers=4 \
+    dataloader_num_workers=0 \
     image_resolution_width=320 \
     image_resolution_height=160 \
     save_lora_only=false \
