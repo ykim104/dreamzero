@@ -1,5 +1,8 @@
 # DreamZero MjThor Full Fine-Tune on Beaker (Wan2.2-TI2V-5B, 4 GPUs)
 # Submit: beaker experiment create beaker/experiment_mjthor_full_finetune.yaml --workspace ai2/mujoco-thor-objaverse
+#
+# Relative (default) vs absolute arm actions:
+#   Set MJTHOR_DATA_CONFIG=absolute in command to train with absolute joint positions
 version: v2
 description: DreamZero MjThor Wan2.2-5B full finetune
 budget: ai2/oe-mm
@@ -15,6 +18,8 @@ tasks:
         export DREAMZERO_ROOT=/root/yejink/dreamzero
         export MJTHOR_DATA_ROOT=/root/datasets/robomolmo/feb10_franka_and_rby1/FrankaPickOmniCamConfig/train
         export DEEPSPEED_CFG=zero2_offload
+        # MJTHOR_DATA_CONFIG=relative (default) or absolute
+        export MJTHOR_DATA_CONFIG=${MJTHOR_DATA_CONFIG:-relative}
         bash /root/yejink/dreamzero/scripts/train/mjthor_training_full_finetune_wan22.sh
     resources:
       gpuCount: 4
@@ -22,6 +27,9 @@ tasks:
     envVars:
       - name: WANDB_API_KEY
         secret: wandb-api-key
+      # Uncomment to train with absolute (not relative) arm actions:
+      # - name: MJTHOR_DATA_CONFIG
+      #   value: absolute
     datasets:
       - mountPath: /root
         source:

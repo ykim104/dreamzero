@@ -4,6 +4,10 @@
 # Usage:
 #   bash scripts/train/mjthor_training_full_finetune_wan22.sh
 #
+# Relative vs absolute actions (arm):
+#   MJTHOR_DATA_CONFIG=relative  (default) - arm uses delta actions
+#   MJTHOR_DATA_CONFIG=absolute  - arm+gripper use absolute joint positions
+#
 # Prerequisites:
 #   - MjThor dataset at MJTHOR_DATA_ROOT (default: /weka/prior/datasets/robomolmo/feb10_franka_and_rby1/FrankaPickOmniCamConfig/train)
 #   - Wan2.2-TI2V-5B weights (auto-downloaded or pre-downloaded from HuggingFace)
@@ -39,7 +43,9 @@ fi
 
 # ============ USER CONFIGURATION ============
 MJTHOR_DATA_ROOT=${MJTHOR_DATA_ROOT:-"/weka/prior/datasets/robomolmo/feb10_franka_and_rby1/FrankaPickOmniCamConfig/train"}
-OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_mjthor_wan22_full_finetune"}
+# Data config: "relative" = arm uses relative (delta) actions; "absolute" = arm+gripper absolute
+MJTHOR_DATA_CONFIG=${MJTHOR_DATA_CONFIG:-relative}
+OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_mjthor_wan22_full_finetune_${MJTHOR_DATA_CONFIG}"}
 
 NUM_GPUS=${NUM_GPUS:-1}
 PER_DEVICE_BS=${PER_DEVICE_BS:-1}
@@ -100,7 +106,7 @@ if [ ! -f "$DEEPSPEED_CFG_PATH" ]; then
 fi
 "${RUN_CMD[@]}" \
     report_to=wandb \
-    data=dreamzero/mjthor_relative \
+    data=dreamzero/mjthor_${MJTHOR_DATA_CONFIG} \
     wandb_project=dreamzero \
     train_architecture=full \
     num_frames=33 \

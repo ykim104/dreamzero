@@ -1,7 +1,9 @@
 # @package _global_
-# MjThor simulated pick-and-place data config for DreamZero.
-# Usage: override mjthor_data_root via CLI, e.g.
-#   mjthor_data_root=/path/to/mjthor/data
+# MjThor with ABSOLUTE joint positions (arm + gripper).
+# Use this when you want to train without relative/delta actions.
+#
+# Usage:
+#   data=dreamzero/mjthor_absolute mjthor_data_root=/path/to/data ...
 
 defaults:
   - dreamzero/base_48_wan_fine_aug_relative
@@ -12,21 +14,17 @@ image_resolution_height: 160
 
 max_state_dim: 64
 use_global_metadata: false
-# relative_action: true = train arm with relative (delta) positions; false = absolute
-relative_action: true
+relative_action: false
 relative_action_per_horizon: false
-# joint_pos_arm matches modality key; gripper stays absolute
-relative_action_keys:
-  - joint_pos_arm
+relative_action_keys: []
 max_chunk_size: 5
 dataset_shard_sampling_rate: 0.5
 
-# Path to the MjThor data root -- override via CLI
 mjthor_data_root: ???
 mjthor_drop_n_last_frames: 7
 
 ################################################################################
-# Train dataset -- uses MjThorMixtureDataset.from_config
+# Train dataset
 ################################################################################
 
 train_dataset:
@@ -58,4 +56,3 @@ train_dataset:
   max_chunk_size: ${max_chunk_size}
   relative_action: ${relative_action}
   relative_action_keys: ${relative_action_keys}
-
