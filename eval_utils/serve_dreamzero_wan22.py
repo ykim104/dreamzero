@@ -14,6 +14,10 @@ Usage (single GPU):
 
   torchrun --nproc_per_node=1 eval_utils/serve_dreamzero_wan22.py --model_path ./checkpoints/dreamzero_droid_wan22_smoke --port 8000
 
+  # MjThor full finetune checkpoint (handles both relative and absolute; mode from checkpoint config):
+  torchrun --nproc_per_node=1 eval_utils/serve_dreamzero_wan22.py --model_path ./checkpoints/dreamzero_mjthor_wan22_full_finetune_relative --embodiment_tag mjthor --port 8000
+  torchrun --nproc_per_node=1 eval_utils/serve_dreamzero_wan22.py --model_path ./checkpoints/dreamzero_mjthor_wan22_full_finetune_absolute --embodiment_tag mjthor --port 8000
+
   # Or single process:
   python eval_utils/serve_dreamzero_wan22.py --model_path ./checkpoints/dreamzero_droid_wan22_smoke --port 8000
 
@@ -103,6 +107,30 @@ def _maybe_init_distributed():
     torch.cuda.set_device(0)
 
 
+# Modality key mappings: client observation keys -> model input keys per embodiment.
+# Client sends: observation/exterior_image_0_left, exterior_image_1_left, wrist_image_left.
+VIDEO_KEY_MAPPING = {
+    "oxe_droid": {
+        "observation/exterior_image_0_left": "video.exterior_image_1_left",
+        "observation/exterior_image_1_left": "video.exterior_image_2_left",
+        "observation/wrist_image_left": "video.wrist_image_left",
+    },
+    "mjthor": {
+        "observation/exterior_image_0_left": "video.droid_shoulder_light_randomization",
+        "observation/exterior_image_1_left": "video.randomized_zed2_analogue_1",
+        "observation/wrist_image_left": "video.wrist_camera_zed_mini",
+    },
+}
+STATE_KEY_MAPPING = {
+    "oxe_droid": ("state.joint_position", "state.gripper_position"),
+    "mjthor": ("state.qpos_arm", "state.qpos_gripper"),
+}
+LANGUAGE_KEY_MAPPING = {
+    "oxe_droid": "annotation.language.action_text",
+    "mjthor": "annotation.language.task_description",
+}
+
+
 class DreamZeroWan225BPolicy(BasePolicy):
     """
     Wraps GrootSimPolicy for the DreamZero 5B implementation (Wan2.2-TI2V-5B).
@@ -114,17 +142,24 @@ class DreamZeroWan225BPolicy(BasePolicy):
     Session reset clears frame buffers and action_head.current_start_frame.
     """
 
-    def __init__(self, groot_policy: GrootSimPolicy, image_height: int, image_width: int,
-                 save_video_pred: bool = False, video_output_dir: str = "./video_pred_output"):
+    def __init__(
+        self,
+        groot_policy: GrootSimPolicy,
+        image_height: int,
+        image_width: int,
+        embodiment_tag: str = "oxe_droid",
+        save_video_pred: bool = False,
+        video_output_dir: str = "./video_pred_output",
+    ):
         super().__init__()
         self._policy = groot_policy
         self._image_height = image_height
         self._image_width = image_width
-        self._frame_buffers = {
-            "video.exterior_image_1_left": [],
-            "video.exterior_image_2_left": [],
-            "video.wrist_image_left": [],
-        }
+        self._embodiment_tag = (
+            embodiment_tag if embodiment_tag in VIDEO_KEY_MAPPING else "oxe_droid"
+        )
+        video_keys = list(VIDEO_KEY_MAPPING[self._embodiment_tag].values())
+        self._frame_buffers = {k: [] for k in video_keys}
         self._is_first_call = True
         self._current_session_id = None
         self._save_video_pred = save_video_pred
@@ -133,16 +168,12 @@ class DreamZeroWan225BPolicy(BasePolicy):
         self._current_prompt: str = ""
 
     def _convert_observation(self, obs: dict) -> dict:
-        """Convert roboarena observation format to DROID/Batch format.
+        """Convert roboarena observation format to model Batch format.
         Incoming frames are resized to the policy's expected (height, width) so
         eval_transform's VideoToTensor check passes.
         """
-        image_key_mapping = {
-            "observation/exterior_image_0_left": "video.exterior_image_1_left",
-            "observation/exterior_image_1_left": "video.exterior_image_2_left",
-            "observation/wrist_image_left": "video.wrist_image_left",
-        }
-        for roboarena_key, droid_key in image_key_mapping.items():
+        image_key_mapping = VIDEO_KEY_MAPPING[self._embodiment_tag]
+        for roboarena_key, model_key in image_key_mapping.items():
             if roboarena_key in obs:
                 data = obs[roboarena_key]
                 if isinstance(data, np.ndarray):
@@ -150,13 +181,13 @@ class DreamZeroWan225BPolicy(BasePolicy):
                         data, self._image_height, self._image_width
                     )
                     if data.ndim == 4:
-                        self._frame_buffers[droid_key].extend(list(data))
+                        self._frame_buffers[model_key].extend(list(data))
                     else:
-                        self._frame_buffers[droid_key].append(data)
+                        self._frame_buffers[model_key].append(data)
 
         num_frames = 1 if self._is_first_call else FRAMES_PER_CHUNK
         converted = {}
-        for droid_key, buffer in self._frame_buffers.items():
+        for model_key, buffer in self._frame_buffers.items():
             if len(buffer) > 0:
                 if len(buffer) >= num_frames:
                     frames_to_use = buffer[-num_frames:]
@@ -165,29 +196,36 @@ class DreamZeroWan225BPolicy(BasePolicy):
                     while len(frames_to_use) < num_frames:
                         frames_to_use.insert(0, buffer[0])
                 video = np.stack(frames_to_use, axis=0)
-                converted[droid_key] = video
+                converted[model_key] = video
 
+        state_joint_key, state_gripper_key = STATE_KEY_MAPPING[self._embodiment_tag]
         if "observation/joint_position" in obs:
             joint_pos = np.asarray(obs["observation/joint_position"])
             if joint_pos.ndim == 1:
                 joint_pos = joint_pos.reshape(1, -1)
-            converted["state.joint_position"] = joint_pos.astype(np.float64)
+            converted[state_joint_key] = joint_pos.astype(np.float64)
         else:
-            converted["state.joint_position"] = np.zeros((1, 7), dtype=np.float64)
+            converted[state_joint_key] = np.zeros((1, 7), dtype=np.float64)
 
         if "observation/gripper_position" in obs:
             gripper_pos = np.asarray(obs["observation/gripper_position"])
             if gripper_pos.ndim == 1:
                 gripper_pos = gripper_pos.reshape(1, -1)
-            converted["state.gripper_position"] = gripper_pos.astype(np.float64)
+            # MjThor Franka gripper has 2 joints (left/right finger); metadata expects 2 dims.
+            # Client typically sends 1 value; duplicate to match.
+            if self._embodiment_tag == "mjthor" and gripper_pos.shape[-1] == 1:
+                gripper_pos = np.repeat(gripper_pos, 2, axis=-1)
+            converted[state_gripper_key] = gripper_pos.astype(np.float64)
         else:
-            converted["state.gripper_position"] = np.zeros((1, 1), dtype=np.float64)
+            default_shape = (1, 2) if self._embodiment_tag == "mjthor" else (1, 1)
+            converted[state_gripper_key] = np.zeros(default_shape, dtype=np.float64)
 
         text_prompt = obs.get("prompt", "")
         logger.info("Text prompt: %s", text_prompt)
         if text_prompt:
             self._current_prompt = text_prompt
-        converted["annotation.language.action_text"] = text_prompt
+        lang_key = LANGUAGE_KEY_MAPPING[self._embodiment_tag]
+        converted[lang_key] = text_prompt
         return converted
 
     def _convert_action(self, action_dict: dict) -> np.ndarray:
@@ -195,7 +233,7 @@ class DreamZeroWan225BPolicy(BasePolicy):
         joint_action = None
         gripper_action = None
         for key, value in action_dict.items():
-            if "joint_position" in key:
+            if ("joint_position" in key or "joint_pos" in key) and "gripper" not in key:
                 joint_action = value
             elif "gripper_position" in key or "gripper" in key:
                 gripper_action = value
@@ -211,6 +249,17 @@ class DreamZeroWan225BPolicy(BasePolicy):
                 gripper_action = gripper_action.cpu().numpy()
             if gripper_action.ndim == 1:
                 gripper_action = gripper_action.reshape(-1, 1)
+            # MjThor returns (N, 2) for gripper; client expects (N, 1).
+            if gripper_action.shape[-1] > 1:
+                gripper_action = gripper_action[..., :1]
+            # MjThor model outputs joint space (0~0.824 rad). Molmospaces policy expects 0-1
+            # and does *255. RobotIQ 2F85: ctrl 0=open, 255=closed (set_gripper_ctrl_open).
+            # Policy sends 255=open, 0=closed. So we must scale and invert:
+            # scale: raw/0.824033 -> 0-1; invert: 1-scaled so policy gets 0=open, 1=closed.
+            if self._embodiment_tag == "mjthor":
+                GRIPPER_OPEN_RAD = 0.824033  # max open joint pos (matches molmospaces input)
+                scaled = np.clip(gripper_action.astype(np.float64) / GRIPPER_OPEN_RAD, 0.0, 1.0)
+                gripper_action = (1.0 - scaled).astype(np.float32)
         else:
             gripper_action = np.zeros((N, 1), dtype=np.float32)
         return np.concatenate([joint_action, gripper_action], axis=-1).astype(np.float32)
@@ -293,6 +342,7 @@ class DreamZeroWan225BPolicy(BasePolicy):
 
 def main(
     model_path: str = "./checkpoints/dreamzero_droid_wan22_smoke",
+    embodiment_tag: str = "oxe_droid",
     tokenizer_path: str | None = None,
     port: int = 8000,
     host: str = "0.0.0.0",
@@ -306,14 +356,20 @@ def main(
     _maybe_init_distributed()
     device_mesh = init_device_mesh("cuda", mesh_shape=(1,), mesh_dim_names=("ip",))
 
-    logger.info("Loading DreamZero Wan22 policy from %s", model_path)
+    logger.info("Loading DreamZero Wan22 policy from %s (embodiment=%s)", model_path, embodiment_tag)
     policy = GrootSimPolicy(
-        embodiment_tag=EmbodimentTag("oxe_droid"),
+        embodiment_tag=EmbodimentTag(embodiment_tag),
         model_path=model_path,
         tokenizer_path_override=tokenizer_path,
         device="cuda" if torch.cuda.is_available() else "cpu",
         device_mesh=device_mesh,
     )
+    # Log MjThor action mode (relative vs absolute) from checkpoint config
+    if embodiment_tag == "mjthor":
+        rel = policy.train_cfg.get("relative_action", False)
+        keys = policy.train_cfg.get("relative_action_keys", [])
+        mode = "relative" if (rel and keys) else "absolute"
+        logger.info("MjThor action mode from checkpoint: %s (relative_action=%s, keys=%s)", mode, rel, keys)
     if image_height is not None and image_width is not None:
         h, w = image_height, image_width
         logger.info("Using CLI video resolution: %dx%d", h, w)
@@ -321,8 +377,12 @@ def main(
         h, w = _get_expected_video_resolution(policy)
         logger.info("Using checkpoint video resolution: %dx%d (HxW)", h, w)
     wrapper = DreamZeroWan225BPolicy(
-        groot_policy=policy, image_height=h, image_width=w,
-        save_video_pred=save_video_pred, video_output_dir=video_output_dir,
+        groot_policy=policy,
+        image_height=h,
+        image_width=w,
+        embodiment_tag=embodiment_tag,
+        save_video_pred=save_video_pred,
+        video_output_dir=video_output_dir,
     )
 
     server_config = PolicyServerConfig(

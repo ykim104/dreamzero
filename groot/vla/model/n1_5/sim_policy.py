@@ -556,10 +556,14 @@ class GrootSimPolicy(BaseGrootSimPolicy):
                 # Try to find the state data - check multiple possible key formats
                 last_state = None
                 
-                # Format 1: Direct key like "state.joint_position"
-                if state_key in obs:
+                # Format 0: MjThor uses joint_pos_arm (action) <-> qpos_arm (state)
+                if key == "joint_pos_arm" and "state.qpos_arm" in obs:
+                    last_state = obs["state.qpos_arm"]
+                
+                if last_state is None and state_key in obs:
+                    # Format 1: Direct key like "state.joint_position"
                     last_state = obs[state_key]
-                else:
+                elif last_state is None:
                     # Format 2: Search for keys containing both "state" and the key name
                     for obs_key in obs.keys():
                         if 'state' in obs_key and key in obs_key:
