@@ -5,8 +5,8 @@
 #   bash scripts/train/mjthor_training_full_finetune_wan22.sh
 #
 # Relative vs absolute actions (arm):
-#   MJTHOR_DATA_CONFIG=relative  (default) - arm uses delta actions
-#   MJTHOR_DATA_CONFIG=absolute  - arm+gripper use absolute joint positions
+#   MJTHOR_DATA_CONFIG=relative  (default) - arm uses HDF5 joint_pos_rel (delta from current state)
+#   MJTHOR_DATA_CONFIG=absolute  - arm+gripper use absolute joint_pos from HDF5
 #
 # Prerequisites:
 #   - MjThor dataset at MJTHOR_DATA_ROOT (default: /weka/prior/datasets/robomolmo/feb10_franka_and_rby1/FrankaPickOmniCamConfig/train)

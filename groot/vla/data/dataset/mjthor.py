@@ -318,10 +318,19 @@ class MjThorSingleDataset:
 
         action_stats: dict[str, DatasetStatisticalValues] = {}
         action_modalities: dict[str, StateActionMetadata] = {}
+        rel_keys_set = {
+            k.replace(".", "_") for k in self.relative_action_keys
+        }
         for a in self.selected_actions:
             top, sub = a.split(".")
             key_name = f"{top}_{sub}"
-            agg_key = f"actions/{top}/{sub}"
+            # Relative mode: use joint_pos_rel stats for relative keys
+            if self.relative_action and key_name in rel_keys_set:
+                agg_key = f"actions/joint_pos_rel/{sub}"
+                if agg_key not in self._stats:
+                    agg_key = f"actions/{top}/{sub}"
+            else:
+                agg_key = f"actions/{top}/{sub}"
             sv = self._stat_values(agg_key)
             action_stats[key_name] = sv
             action_modalities[key_name] = StateActionMetadata(
@@ -509,10 +518,15 @@ class MjThorSingleDataset:
                     act_top_keys = set(
                         a.split(".")[0] for a in self.selected_actions
                     )
+                    # Relative mode always uses source joint_pos_rel (never convert in-code)
+                    if self.relative_action:
+                        act_top_keys.add("joint_pos_rel")
                     act_decoded: dict[str, list[dict]] = {
                         k: [] for k in act_top_keys
                     }
                     for tk in act_top_keys:
+                        if tk not in act_grp:
+                            continue
                         ds = act_grp[tk]
                         n = min(ds.shape[0], max_frame + 1)
                         for i in range(n):
@@ -520,11 +534,24 @@ class MjThorSingleDataset:
                             act_decoded[tk].append(json.loads(raw))
 
                     cached_act[tid] = {}
+                    rel_keys_set = {
+                        k.replace(".", "_") for k in self.relative_action_keys
+                    }
                     for a in self.selected_actions:
                         top, sub = a.split(".")
                         kn = f"{top}_{sub}"
+                        # Relative mode: always use source joint_pos_rel for relative keys
+                        load_top = top
+                        if (
+                            self.relative_action
+                            and kn in rel_keys_set
+                            and "joint_pos_rel" in act_decoded
+                            and len(act_decoded["joint_pos_rel"]) > 0
+                        ):
+                            load_top = "joint_pos_rel"
                         vals: list[list[float]] = []
-                        for d in act_decoded[top]:
+                        source_list = act_decoded.get(load_top) or act_decoded[top]
+                        for d in source_list:
                             v = d.get(sub)
                             if v is None:
                                 vals.append(vals[-1] if vals else [0.0])
@@ -551,31 +578,6 @@ class MjThorSingleDataset:
         elapsed = time.time() - t0
         print(f"MjThor: cached shard {shard_index} in {elapsed:.1f}s")
         return cached_video, cached_st, cached_act, cached_lang, start_indices
-
-    # -- Relative action conversion --
-
-    def _to_relative_action(
-        self,
-        act_data: np.ndarray,
-        full_arr: np.ndarray,
-        state_anchors: np.ndarray,
-        num_chunks: int,
-    ) -> np.ndarray:
-        """Convert absolute actions to relative (delta from chunk-anchor state).
-
-        For each 24-action chunk the reference is the state at the
-        corresponding anchor index.  This mirrors the DROID
-        ``_convert_to_relative_action`` logic.
-        """
-        out = act_data.copy()
-        n = full_arr.shape[0]
-        for ci in range(num_chunks):
-            start = ci * 24
-            end = start + 24
-            ref_idx = int(np.clip(state_anchors[ci], 0, max(n - 1, 0)))
-            ref = full_arr[ref_idx]
-            out[start:end] = out[start:end] - ref
-        return out
 
     # -- Multi-chunk expansion (mirrors DROID ShardedLeRobotSubLangSingleActionChunkDatasetDROID) --
 
@@ -804,12 +806,7 @@ class MjThorSingleDataset:
                 key = f"action.{kn}"
                 arr = self.cached_actions[trajectory_id][kn]
                 act_data = self._retrieve_and_pad(arr, act_idx, "zero")
-                if self.relative_action and kn in [
-                    k.replace(".", "_") for k in self.relative_action_keys
-                ]:
-                    act_data = self._to_relative_action(
-                        act_data, arr, st_idx, num_chunks
-                    )
+                # Relative mode uses source joint_pos_rel only; no in-code conversion
                 data[key] = act_data
 
             # Language

@@ -15,7 +15,7 @@ use_global_metadata: false
 # relative_action: true = train arm with relative (delta) positions; false = absolute
 relative_action: true
 relative_action_per_horizon: false
-# joint_pos_arm matches modality key; gripper stays absolute
+# joint_pos_arm matches modality key; gripper stays absolute. Relative = always from HDF5 joint_pos_rel (no in-code conversion).
 relative_action_keys:
   - joint_pos_arm
 max_chunk_size: 5
