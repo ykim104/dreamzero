@@ -243,4 +243,4 @@ groot/control/envs/yam/data/eval/*
 /data
 
 checkpoints/
-video_pred_output/
+video_pred_output*/
