@@ -42,6 +42,10 @@ if [ "$DROID_DATA_ROOT" = "./data/droid_lerobot" ]; then
 fi
 # Fixed output dir so Beaker restarts resume from latest checkpoint in this folder.
 # For concurrent runs use: OUTPUT_DIR=.../dreamzero_droid_wan22_full_finetune_$(date +%Y%m%d_%H%M%S)
+#
+# Resume from 100k to 200k: use this same OUTPUT_DIR and run this script with max_steps=200000.
+# If the 100k run completed (saved final model), the code will see config.json and skip training.
+# To force resume: remove config.json from OUTPUT_DIR so the latest checkpoint-* is used, then run.
 OUTPUT_DIR=${OUTPUT_DIR:-"$DREAMZERO_ROOT/checkpoints/dreamzero_droid_wan22_full_finetune"}
 
 NUM_GPUS=${NUM_GPUS:-4}
@@ -116,12 +120,12 @@ DEEPSPEED_CFG=${DEEPSPEED_CFG:-zero2_offload}
     seed=42 \
     training_args.learning_rate=1e-5 \
     training_args.deepspeed="groot/vla/configs/deepspeed/${DEEPSPEED_CFG}.json" \
-    save_steps=1000 \
+    save_steps=500 \
     training_args.warmup_ratio=0.05 \
     output_dir=$OUTPUT_DIR \
     per_device_train_batch_size=$PER_DEVICE_BS \
     global_batch_size=$GLOBAL_BATCH_SIZE \
-    max_steps=100000 \
+    max_steps=200000 \
     weight_decay=1e-5 \
     save_total_limit=10 \
     upload_checkpoints=false \

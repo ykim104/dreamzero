@@ -252,13 +252,10 @@ class DreamZeroWan225BPolicy(BasePolicy):
             # MjThor returns (N, 2) for gripper; client expects (N, 1).
             if gripper_action.shape[-1] > 1:
                 gripper_action = gripper_action[..., :1]
-            # Joint (qpos): 0=open, ~0.8=closed. Command: 0=open, 255=closed. Scale to [0,1]
-            # so client gets 0=open, 1=closed -> policy sends 0=open, 255=closed to sim (no invert).
             if self._embodiment_tag == "mjthor":
-                GRIPPER_OPEN_RAD = 0.824033  # joint pos at full open; closed ~0.8
-                gripper_action = np.clip(
-                    gripper_action.astype(np.float64) / GRIPPER_OPEN_RAD, 0.0, 1.0
-                ).astype(np.float32)
+                # MjThor-trained model: outputs 0~255, 0=open, 255=closed.
+                gripper_action = np.clip(gripper_action.astype(np.float32) / 255.0, 0.0, 1.0)
+                #gripper_action = gripper_action.astype(np.float32) / 255.0
         else:
             gripper_action = np.zeros((N, 1), dtype=np.float32)
         return np.concatenate([joint_action, gripper_action], axis=-1).astype(np.float32)
@@ -356,6 +353,8 @@ def main(
     device_mesh = init_device_mesh("cuda", mesh_shape=(1,), mesh_dim_names=("ip",))
 
     logger.info("Loading DreamZero Wan22 policy from %s (embodiment=%s)", model_path, embodiment_tag)
+    checkpoint_name = os.path.basename(model_path.rstrip("/"))
+    video_output_dir = os.path.join(video_output_dir, checkpoint_name)
     policy = GrootSimPolicy(
         embodiment_tag=EmbodimentTag(embodiment_tag),
         model_path=model_path,
