@@ -252,14 +252,13 @@ class DreamZeroWan225BPolicy(BasePolicy):
             # MjThor returns (N, 2) for gripper; client expects (N, 1).
             if gripper_action.shape[-1] > 1:
                 gripper_action = gripper_action[..., :1]
-            # MjThor model outputs joint space (0~0.824 rad). Molmospaces policy expects 0-1
-            # and does *255. RobotIQ 2F85: ctrl 0=open, 255=closed (set_gripper_ctrl_open).
-            # Policy sends 255=open, 0=closed. So we must scale and invert:
-            # scale: raw/0.824033 -> 0-1; invert: 1-scaled so policy gets 0=open, 1=closed.
+            # Joint (qpos): 0=open, ~0.8=closed. Command: 0=open, 255=closed. Scale to [0,1]
+            # so client gets 0=open, 1=closed -> policy sends 0=open, 255=closed to sim (no invert).
             if self._embodiment_tag == "mjthor":
-                GRIPPER_OPEN_RAD = 0.824033  # max open joint pos (matches molmospaces input)
-                scaled = np.clip(gripper_action.astype(np.float64) / GRIPPER_OPEN_RAD, 0.0, 1.0)
-                gripper_action = (1.0 - scaled).astype(np.float32)
+                GRIPPER_OPEN_RAD = 0.824033  # joint pos at full open; closed ~0.8
+                gripper_action = np.clip(
+                    gripper_action.astype(np.float64) / GRIPPER_OPEN_RAD, 0.0, 1.0
+                ).astype(np.float32)
         else:
             gripper_action = np.zeros((N, 1), dtype=np.float32)
         return np.concatenate([joint_action, gripper_action], axis=-1).astype(np.float32)
